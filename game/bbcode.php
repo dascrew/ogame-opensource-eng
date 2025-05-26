@@ -8,13 +8,13 @@
  ******************************************************************************/
 
 class bbcode {
-	/* Описания свойств и методов смотрите в документации. */
-    var $tag = '';
-    var $attrib = array();
-    var $text = '';
-    var $syntax = array();
-    var $tree = array();
-    var $tags = array(
+	/* See the documentation for descriptions of properties and methods. */
+    public $tag = '';
+    public $attrib = array();
+    public $text = '';
+    public $syntax = array();
+    public $tree = array();
+    public $tags = array(
         'align'   => 'bb_align',
         'b'       => 'bb_strong',
         'color'   => 'bb_color',
@@ -31,15 +31,15 @@ class bbcode {
         'u'       => 'bb_u',
         'url'     => 'bb_a'
     );
-    var $children = array(
+    public $children = array(
         'align','b','color','email','font','hr','i','img',
         'quote','s','size','sub','sup','u','url'
     );
-    var $mnemonics = array();
-    var $autolinks = true;
-    var $is_close = false;
-    var $lbr = 0;
-    var $rbr = 0;
+    public $mnemonics = array();
+    public $autolinks = true;
+    public $isClose = false;
+    public $lbr = 0;
+    public $rbr = 0;
 
     function __construct($code = '') {
         $this -> do_bbcode ($code);
@@ -77,7 +77,7 @@ class bbcode {
         $type_of_char = null;
         for ($i=0; $i < $length; ++$i) {
             $previous_type = $type_of_char;
-            switch ($this -> text{$i}) {
+            switch ($this -> text[$i]) {
                 case '[':
                     $type_of_char = 0;
                     break;
@@ -126,21 +126,21 @@ class bbcode {
             switch ($type_of_char) {
                 case 6:
                     if (6 == $previous_type) {
-                        $tokens[$token_key][1] .= $this -> text{$i};
+                        $tokens[$token_key][1] .= $this -> text[$i];
                     } else {
-                    	$tokens[++$token_key] = array(6, $this -> text{$i});
+                    	$tokens[++$token_key] = array(6, $this -> text[$i]);
                     }
                     break;
                 case 7:
                     if (7 == $previous_type) {
-                        $tokens[$token_key][1] .= $this -> text{$i};
+                        $tokens[$token_key][1] .= $this -> text[$i];
                     } else {
-                    	$tokens[++$token_key] = array(7, $this -> text{$i});
+                    	$tokens[++$token_key] = array(7, $this -> text[$i]);
                     }
                     break;
                 default:
                     $tokens[++$token_key] = array(
-                        $type_of_char, $this -> text{$i}
+                        $type_of_char, $this -> text[$i]
                     );
             }
         }
@@ -153,50 +153,35 @@ class bbcode {
             return;
         }
         /*
-        Используем метод конечных автоматов
-        Список возможных состояний автомата:
-        0  - Начало сканирования или находимся вне тега. Ожидаем что угодно.
-        1  - Встретили символ "[", который считаем началом тега. Ожидаем имя
-             тега, или символ "/".
-        2  - Нашли в теге неожидавшийся символ "[". Считаем предыдущую строку
-             ошибкой. Ожидаем имя тега, или символ "/".
-        3  - Нашли в теге синтаксическую ошибку. Текущий символ не является "[".
-             Ожидаем что угодно.
-        4  - Сразу после "[" нашли символ "/". Предполагаем, что попали в
-             закрывающий тег. Ожидаем имя тега или символ "]".
-        5  - Сразу после "[" нашли имя тега. Считаем, что находимся в
-             открывающем теге. Ожидаем пробел или "=" или "/" или "]".
-        6  - Нашли завершение тега "]". Ожидаем что угодно.
-        7  - Сразу после "[/" нашли имя тега. Ожидаем "]".
-        8  - В открывающем теге нашли "=". Ожидаем пробел или значение атрибута.
-        9  - В открывающем теге нашли "/", означающий закрытие тега. Ожидаем
-             "]".
-        10 - В открывающем теге нашли пробел после имени тега или имени
-             атрибута. Ожидаем "=" или имя другого атрибута или "/" или "]".
-        11 - Нашли '"' начинающую значение атрибута, ограниченное кавычками.
-             Ожидаем что угодно.
-        12 - Нашли "'" начинающий значение атрибута, ограниченное апострофами.
-             Ожидаем что угодно.
-        13 - Нашли начало незакавыченного значения атрибута. Ожидаем что угодно.
-        14 - В открывающем теге после "=" нашли пробел. Ожидаем значение
-             атрибута.
-        15 - Нашли имя атрибута. Ожидаем пробел или "=" или "/" или "]".
-        16 - Находимся внутри значения атрибута, ограниченного кавычками.
-             Ожидаем что угодно.
-        17 - Завершение значения атрибута. Ожидаем пробел или имя следующего
-             атрибута или "/" или "]".
-        18 - Находимся внутри значения атрибута, ограниченного апострофами.
-             Ожидаем что угодно.
-        19 - Находимся внутри незакавыченного значения атрибута. Ожидаем что
-             угодно.
-        20 - Нашли пробел после значения атрибута. Ожидаем имя следующего
-             атрибута или "/" или "]".
+        Using the finite state machine method
+        List of possible FSM states:
+        0  - Start of scanning or outside of a tag. Expect anything.
+        1  - Encountered the character "[", assumed to be the beginning of a tag. Expecting a tag name or the character "/".
+        2  - Found an unexpected "[" character inside a tag. Consider the previous string an error. Expecting a tag name or the character "/".
+        3  - Found a syntax error inside a tag. The current character is not "[". Expect anything.
+        4  - Immediately after "[" found the character "/". Assuming it’s a closing tag. Expecting a tag name or the character "]".
+        5  - Immediately after "[" found a tag name. Assuming it’s an opening tag. Expecting a space, "=", "/", or "]".
+        6  - Found the tag-closing character "]". Expect anything.
+        7  - Immediately after "[/" found a tag name. Expecting "]".
+        8  - In an opening tag, found "=". Expecting a space or an attribute value.
+        9  - In an opening tag, found "/", indicating tag closure. Expecting "]".
+        10 - In an opening tag, found a space after the tag name or attribute name. Expecting "=", another attribute name, "/", or "]".
+        11 - Found '"' indicating the start of an attribute value enclosed in double quotes. Expect anything.
+        12 - Found "'" indicating the start of an attribute value enclosed in single quotes. Expect anything.
+        13 - Found the start of an unquoted attribute value. Expect anything.
+        14 - In an opening tag, found a space after "=". Expecting an attribute value.
+        15 - Found an attribute name. Expecting a space, "=", "/", or "]".
+        16 - Inside an attribute value enclosed in double quotes. Expect anything.
+        17 - End of an attribute value. Expecting a space, another attribute name, "/", or "]".
+        18 - Inside an attribute value enclosed in single quotes. Expect anything.
+        19 - Inside an unquoted attribute value. Expect anything.
+        20 - Found a space after an attribute value. Expecting another attribute name, "/", or "]".
 
-        Описание конечного автомата:
-        */
+        Description of the finite state machine:
+*/
         $finite_automaton = array(
-               // Предыдущие |   Состояния для текущих событий (лексем)   |
-               //  состояния |  0 |  1 |  2 |  3 |  4 |  5 |  6 |  7 |  8 |
+               //  Previous   |   States for current events   |
+               //  States    |  0 |  1 |  2 |  3 |  4 |  5 |  6 |  7 |  8 |
                    0 => array(  1 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 )
                 ,  1 => array(  2 ,  3 ,  3 ,  3 ,  3 ,  4 ,  3 ,  3 ,  5 )
                 ,  2 => array(  2 ,  3 ,  3 ,  3 ,  3 ,  4 ,  3 ,  3 ,  5 )
@@ -219,13 +204,13 @@ class bbcode {
                 , 19 => array( 19 ,  6 , 19 , 19 , 19 , 19 , 20 , 19 , 19 )
                 , 20 => array(  2 ,  6 ,  3 ,  3 ,  3 ,  9 ,  3 , 15 , 15 )
             );
-        // Закончили описание конечного автомата
+        // Finished describing the finite state machine
         $mode = 0;
         $result = array();
         $tag_decomposition = array();
         $token_key = -1;
         $value = '';
-        // Сканируем массив лексем с помощью построенного автомата:
+        // Scanning the array using the constructed finite state machine:
         foreach ($this -> get_tokens() as $token) {
             $previous_mode = $mode;
             $mode = $finite_automaton[$previous_mode][$token[0]];
@@ -553,10 +538,10 @@ class bbcode {
     }
 
     function get_tree() {
-        /* Превращаем $this -> syntax в правильную скобочную структуру */
+        /* Converting $this -> syntax into the correct bracket structure */
         $structure = $this -> normalize_bracket($this -> syntax);
-        /* Отслеживаем, имеют ли элементы неразрешенные подэлементы.
-           Соответственно этому исправляем $structure. */
+        /* Tracking whether elements have unresolved subelements.
+            Adjusting $structure accordingly. */
         $normalized = array();
         $normal_key = -1;
         $level = 0;
@@ -683,7 +668,7 @@ class bbcode {
             }
         }
         unset($structure);
-        // Формируем дерево элементов
+        // Building the element tree
         $result = array();
         $result_key = -1;
         $open_tags = array();
@@ -880,13 +865,13 @@ class bbcode {
     }
 }
 
-// Класс для тегов [a], [anchor] и [url]
+// Class for the [a], [anchor], and [url] tags
 class bb_a extends bbcode {
-    var $ends = array(
+    public $ends = array(
         '*','align','center','h1','h2','h3','hr','justify','left','list','php',
         'quote','right','table','td','th','tr'
     );
-    var $children = array(
+    public $children = array(
         'abbr','acronym','b','bbcode','code','color','font','i','img','nobb',
         's','size','strike','sub','sup','tt','u'
     );
@@ -949,10 +934,10 @@ class bb_a extends bbcode {
     }
 }
 
-// Класс для тегов [align], [center], [justify], [left] и [right]
+// Class for the [align], [center], [justify], [left], and [right] tags
 class bb_align extends bbcode {
-    var $rbr = 1;
-    var $ends = array('*','tr','td','th');
+    public $rbr = 1;
+    public $ends = array('*','tr','td','th');
     function get_html($elems = false) {
         $align = '';
         if (isset($this -> attrib['justify'])) { $align = 'justify'; }
@@ -980,13 +965,13 @@ class bb_align extends bbcode {
     }
 }
 
-// Класс для тега [color]
+// Class for the [color] tag
 class bb_color extends bbcode {
-    var $ends = array(
+    public $ends = array(
         '*','address','align','center','h1','h2','h3','hr','justify',
         'left','list','php','quote','right','table','td','th','tr'
     );
-    var $children = array(
+    public $children = array(
         'a','abbr','acronym','anchor','b','bbcode','code','color','email',
         'font','google','i','img','nobb','s','size','strike','sub','sup','tt',
         'u','url'
@@ -998,13 +983,13 @@ class bb_color extends bbcode {
     }
 }
 
-// Класс для тегов [s] и [strike]
+// Class for the [s] and [strike] tags
 class bb_del extends bbcode {
-    var $ends = array(
+    public $ends = array(
         '*','address','align','center','h1','h2','h3','hr','justify',
         'left','list','php','quote','right','table','td','th','tr'
     );
-    var $children = array(
+    public $children = array(
         'a','abbr','acronym','anchor','b','bbcode','code','color','email',
         'font','google','i','img','nobb','s','size','strike','sub','sup','tt',
         'u','url'
@@ -1014,13 +999,13 @@ class bb_del extends bbcode {
     }
 }
 
-// Класс для тега [email]
+// Class for the [email] tag
 class bb_email extends bbcode {
-    var $ends = array(
+    public $ends = array(
         '*','address','align','center','h1','h2','h3','hr','justify',
         'left','list','php','quote','right','table','td','th','tr'
     );
-    var $children = array(
+    public $children = array(
         'abbr','acronym','b','bbcode','code','color','email','font','i','img',
         'nobb','s','size','strike','sub','sup','tt','u'
     );
@@ -1052,13 +1037,13 @@ class bb_email extends bbcode {
     }
 }
 
-// Класс для тега [font]
+// Class for the [font]
 class bb_font extends bbcode {
-    var $ends = array(
+    public $ends = array(
         '*','address','align','center','h1','h2','h3','hr','justify',
         'left','list','php','quote','right','table','td','th','tr'
     );
-    var $children = array(
+    public $children = array(
         'a','abbr','acronym','anchor','b','bbcode','code','color','email',
         'font','font','google','i','img','nobb','s','size','strike','sub','sup',
         'tt','u','url'
@@ -1074,24 +1059,24 @@ class bb_font extends bbcode {
     }
 }
 
-// Класс для тега [hr]
+// Class for the [hr]
 class bb_hr extends bbcode {
-    var $is_close = true;
-    var $rbr = 1;
-    var $ends = array();
-    var $children = array();
+    public $isClose = true;
+    public $rbr = 1;
+    public $ends = array();
+    public $children = array();
     function get_html($elems = false) {
         return '<hr class="bb" />';
     }
 }
 
-// Класс для тега [i]
+// Class for the [i]
 class bb_i extends bbcode {
-    var $ends = array(
+    public $ends = array(
         '*','address','align','center','h1','h2','h3','hr','justify',
         'left','list','php','quote','right','table','td','th','tr'
     );
-    var $children = array(
+    public $children = array(
         'a','abbr','acronym','anchor','b','bbcode','code','color','email',
         'font','google','i','img','nobb','s','size','strike','sub','sup','tt',
         'u','url'
@@ -1101,10 +1086,10 @@ class bb_i extends bbcode {
     }
 }
 
-// Класс для тега [img]
+// Class for the [img]
 class bb_img extends bbcode {
-    var $ends = array();
-    var $children = array();
+    public $ends = array();
+    public $children = array();
     function get_html($elems = false) {
         $attr = 'alt=""';
         if (isset($this -> attrib['width'])) {
@@ -1134,10 +1119,10 @@ class bb_img extends bbcode {
     }
 }
 
-// Класс для тега [quote]
+// Class for the [quote]
 class bb_quote extends bbcode {
-    var $rbr = 1;
-    var $ends = array();
+    public $rbr = 1;
+    public $ends = array();
     function get_html($elems = false) {
         $author = htmlspecialchars($this -> attrib['quote']);
         if ($author) $author = "(\n<b style=\"color: white;\">".$author."</b>\n)";
@@ -1147,13 +1132,13 @@ class bb_quote extends bbcode {
     }
 }
 
-// Класс для тега [size]
+// Class for the [size]
 class bb_size extends bbcode {
-    var $ends = array(
+    public $ends = array(
         '*','address','align','center','h1','h2','h3','hr','justify',
         'left','list','php','quote','right','table','td','th','tr'
     );
-    var $children = array(
+    public $children = array(
         'a','abbr','acronym','anchor','b','bbcode','code','color','email',
         'font','google','i','img','nobb','s','size','strike','sub','sup','tt',
         'u','url'
@@ -1181,13 +1166,13 @@ class bb_size extends bbcode {
     }
 }
 
-// Класс для тега [b]
+// Class for the [b]
 class bb_strong extends bbcode {
-    var $ends = array(
+    public $ends = array(
         '*','address','align','center','h1','h2','h3','hr','justify',
         'left','list','php','quote','right','table','td','th','tr'
     );
-    var $children = array(
+    public $children = array(
         'a','abbr','acronym','anchor','b','bbcode','code','color','email',
         'font','google','i','img','nobb','s','size','strike','sub','sup','tt',
         'u','url'
@@ -1197,13 +1182,13 @@ class bb_strong extends bbcode {
     }
 }
 
-// Класс для тега [sub]
+// Class for the [sub]
 class bb_sub extends bbcode {
-    var $ends = array(
+    public $ends = array(
         '*','address','align','center','h1','h2','h3','hr','justify',
         'left','list','php','quote','right','table','td','th','tr'
     );
-    var $children = array(
+    public $children = array(
         'a','abbr','acronym','anchor','b','bbcode','code','color','email',
         'font','google','i','img','nobb','s','size','strike','sub','sup','tt',
         'u','url'
@@ -1213,13 +1198,13 @@ class bb_sub extends bbcode {
     }
 }
 
-// Класс для тега [sup]
+// Class for the [sup]
 class bb_sup extends bbcode {
-    var $ends = array(
+    public $ends = array(
         '*','address','align','center','h1','h2','h3','hr','justify',
         'left','list','php','quote','right','table','td','th','tr'
     );
-    var $children = array(
+    public $children = array(
         'a','abbr','acronym','anchor','b','bbcode','code','color','email',
         'font','google','i','img','nobb','s','size','strike','sub','sup','tt',
         'u','url'
@@ -1229,13 +1214,13 @@ class bb_sup extends bbcode {
     }
 }
 
-// Класс для тега [u]
+// Class for the [u]
 class bb_u extends bbcode {
-    var $ends = array(
+    public $ends = array(
         '*','address','align','center','h1','h2','h3','hr',
         'justify','left','list','php','quote','right','table','td','th','tr'
     );
-    var $children = array(
+    public $children = array(
         'a','abbr','acronym','anchor','b','bbcode','code','color','email',
         'font','google','i','img','nobb','s','size','strike','sub','sup','tt',
         'u','url'
@@ -1245,7 +1230,7 @@ class bb_u extends bbcode {
     }
 }
 
-// Преобразовать BB-коды в HTML.
+// Convert BB codes to HTML.
 function bb ($text)
 {
     $bb = new bbcode ($text);
