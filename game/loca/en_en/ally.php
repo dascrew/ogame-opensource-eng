@@ -92,7 +92,7 @@ $LOCA["en"]["ALLY_CIRC_TO"] = "Recipient";
 $LOCA["en"]["ALLY_CIRC_ALL"] = "All players";
 $LOCA["en"]["ALLY_CIRC_RANK"] = "Only to a specific rank: #1";
 $LOCA["en"]["ALLY_CIRC_MESSAGE"] = "Message text (#1 / #2 Simv.)";
-
+$LOCA["en"]["ALLY_CIRC_SEND"] = "Submit";
 
 // settings
 
@@ -144,6 +144,7 @@ $LOCA["en"]["ALLY_MEMBERS_KICK_CONFIRM"] = "Are you sure that player #1 should l
 $LOCA["en"]["ALLY_MEMBERS_SET_RANK"] = "Assign rank";
 $LOCA["en"]["ALLY_MEMBERS_RANK_TO"] = "Rank for #1:";
 $LOCA["en"]["ALLY_MEMBERS_SAVE"] = "Save";
+$LOCA["en"]["ALLY_MEMBERS_ID"] = "N";
 
 // misc
 
@@ -190,7 +191,7 @@ $LOCA["en"]["ALLY_MSG_KICK_TEXT"] = " Player #1 has been expelled from the allia
 $LOCA["en"]["ALLY_MSG_KICK_SUBJ"] = "[#1] alliance membership is terminated.";
 $LOCA["en"]["ALLY_MSG_YOU_KICKED"] = " Player #1 has expelled you from alliance [#2] .<br>You may now register again.";
 $LOCA["en"]["ALLY_MSG_LEAVE"] = " Player #1 has left the alliance.";
- $LOCA["en"]["ALLY_MSG_DISMISS_SUBJ"] = "Alliance membership[#1]has ended.";
+$LOCA["en"]["ALLY_MSG_DISMISS_SUBJ"] = "Alliance membership[#1]has ended.";
 $LOCA["en"]["ALLY_MSG_DISMISS"] = "[Player #1] has dissolved alliance[#2].<br>You may now join another alliance or create your own";
 $LOCA["en"]["ALLY_MSG_TAKEOVER_SUBJ"] = "A change of power in alliance [#1].";
 $LOCA["en"]["ALLY_MSG_TAKEOVER"] = "Player #1, who holds the title of alliance founder, has left the alliance";

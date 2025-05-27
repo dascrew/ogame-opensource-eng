@@ -923,7 +923,7 @@ class bb_a extends bbcode {
             if (! $id) { $id = $text; }
         }
         if ($id) {
-        	if ($id{0} < 'A' || $id{0} > 'z') { $id = 'bb'.$id; }
+        	if ($id[0] < 'A' || $id[0] > 'z') { $id = 'bb'.$id; }
         	$attr .= ' id="'.htmlspecialchars($id).'"';
         }
         if (isset($this -> attrib['target'])) {
@@ -1114,7 +1114,7 @@ class bb_img extends bbcode {
         $src = str_replace('(', '&#'.ord('(').';', $src);
         $src = str_replace(')', '&#'.ord(')').';', $src);
 
-        return "<img class=\"reloadimage\" alt=\"BBCode included image\" title=\"pic.php?url=".$src."\" src=\"pic.php?url=".$src."\" />";
+        return "<img class=reloadimage title=$src src=pic.php?url=".$src." />";
 //      return '<img src="'.$src.'" '.$attr.' />';
     }
 }
@@ -1146,7 +1146,7 @@ class bb_size extends bbcode {
     function get_html($elems = false) {
         $sign = '';
         if (strlen($this -> attrib['size'])) {
-            $sign = $this -> attrib['size']{0};
+            $sign = $this -> attrib['size'][0];
         }
         if ('+' != $sign) { $sign = ''; }
         $size = (int) $this -> attrib['size'];
