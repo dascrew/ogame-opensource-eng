@@ -23,7 +23,7 @@ require_once "prod.php";
 
 /*
 PHP engine operation from a technical point of view.
-All arrays are stored as long strings. The arr[i] element is accessed by the ord($arr{$i}) construct, writing $arr{$i} = chr(n).
+All arrays are stored as long strings. The arr[i] element is accessed by the ord($arr[$i]) construct, writing $arr[$i] = chr(n).
 This is done to save memory - a string takes as many bytes as there are characters in it, while associative arrays in PHP are quite expensive.
 
 The array-strings are divided into two identical groups - attackers and defenders. Each group is divided into several array-strings, with all slots combined (to simplify indexing of random shots, from 0 to N):
@@ -81,9 +81,9 @@ function InitBattle ($slot, $num, $objs, $attacker, &$explo_arr, &$obj_arr, &$sl
                 $hull = $UnitParam[$gid][0] * 0.1 * (10+$slot[$i]['armr']) / 10;
                 $obj_type = $gid - 200;
 
-                $explo_arr{$ucnt} = chr(0);
-                $obj_arr{$ucnt} = chr($obj_type);
-                $slot_arr{$ucnt} = chr($slot_id);
+                $explo_arr[$ucnt] = chr(0);
+                $obj_arr[$ucnt] = chr($obj_type);
+                $slot_arr[$ucnt] = chr($slot_id);
                 set_packed_word ($hull_arr, $ucnt, $hull);
                 set_packed_word ($shld_arr, $ucnt, 0);
 
@@ -100,9 +100,9 @@ function InitBattle ($slot, $num, $objs, $attacker, &$explo_arr, &$obj_arr, &$sl
                     $hull = $UnitParam[$gid][0] * 0.1 * (10+$slot[$i]['armr']) / 10;
                     $obj_type = $gid - 200;
 
-                    $explo_arr{$ucnt} = chr(0);
-                    $obj_arr{$ucnt} = chr($obj_type);
-                    $slot_arr{$ucnt} = chr($slot_id);
+                    $explo_arr[$ucnt] = chr(0);
+                    $obj_arr[$ucnt] = chr($obj_type);
+                    $slot_arr[$ucnt] = chr($slot_id);
                     set_packed_word ($hull_arr, $ucnt, $hull);
                     set_packed_word ($shld_arr, $ucnt, 0);
 
@@ -123,15 +123,15 @@ function UnitShoot ($a, $b, &$aunits, &$aslot, &$ahull, &$ashld, $attackers, &$d
     global $exploded_counter;
     global $already_exploded_counter;
 
-    $a_slot_id = ord($aslot{$a});
-    $a_gid = ord($aunits{$a}) + 200;
+    $a_slot_id = ord($aslot[$a]);
+    $a_gid = ord($aunits[$a]) + 200;
 
-    $b_slot_id = ord($dslot{$b});
-    $b_gid = ord($dunits{$b}) + 200;
+    $b_slot_id = ord($dslot[$b]);
+    $b_gid = ord($dunits[$b]) + 200;
 
     $apower = $UnitParam[$a_gid][2] * (10 + $attackers[$a_slot_id]['weap']) / 10;
 
-    if (ord($dexplo{$b}) !=0 ) {
+    if (ord($dexplo[$b]) !=0 ) {
         $already_exploded_counter++;
         return $apower; // Already blown up.
     }
@@ -183,7 +183,7 @@ function UnitShoot ($a, $b, &$aunits, &$aslot, &$ahull, &$ashld, $attackers, &$d
             $dm += intval (ceil($price['m'] * ((float)( ($b_gid >= 401 ? $did : $fid) / 100.0))));
             $dk += intval (ceil($price['k'] * ((float)( ($b_gid >= 401 ? $did : $fid) / 100.0))));
 
-            $dexplo{$b} = chr(1);
+            $dexplo[$b] = chr(1);
             $exploded_counter++;
         }
     }
@@ -208,12 +208,12 @@ function WipeExploded ($count, &$explo_arr, &$obj_arr, &$slot_arr, &$hull_arr, &
 
     for ($i=0; $i<$count; $i++) {
 
-        if ( ord($explo_arr{$i}) == 0 ) {
+        if ( ord($explo_arr[$i]) == 0 ) {
 
             // If not exploded move to a new array
-            $explo_new{$dst} = chr(0);
-            $obj_new{$dst} = $obj_arr{$i};
-            $slot_new{$dst} = $slot_arr{$i};
+            $explo_new[$dst] = chr(0);
+            $obj_new[$dst] = $obj_arr[$i];
+            $slot_new[$dst] = $slot_arr[$i];
             set_packed_word ($hull_new, $dst, get_packed_word($hull_arr, $i) );
             set_packed_word ($shld_new, $dst, get_packed_word($shld_arr, $i) );
 
@@ -253,14 +253,14 @@ function ChargeShields ($slot, $count, &$explo_arr, &$obj_arr, &$slot_arr, &$shl
 
     for ($i=0; $i<$count; $i++) {
 
-        if (ord($explo_arr{$i}) != 0 ) {
+        if (ord($explo_arr[$i]) != 0 ) {
 
             set_packed_word ($shld_arr, $i, 0);
         }
         else {
 
-            $slot_id = ord($slot_arr{$i});
-            $gid = ord($obj_arr{$i}) + 200;
+            $slot_id = ord($slot_arr[$i]);
+            $gid = ord($obj_arr[$i]) + 200;
             $shield_max = $UnitParam[$gid][1] * (10 + $slot[$slot_id]['shld']) / 10;
             set_packed_word ($shld_arr, $i, $shield_max);
         }
@@ -274,8 +274,8 @@ function CheckFastDraw (&$aunits, &$aslot, &$ahull, $aobjs, $attackers, &$dunits
 
     for ($i=0; $i<$aobjs; $i++) {
 
-        $slot_id = ord($aslot{$i});
-        $gid = ord($aunits{$i}) + 200;
+        $slot_id = ord($aslot[$i]);
+        $gid = ord($aunits[$i]) + 200;
         $hull_max = $UnitParam[$gid][0] * 0.1 * (10+$attackers[$slot_id]['armr']) / 10;
 
         if (get_packed_word($ahull, $i) != $hull_max) return false;
@@ -283,8 +283,8 @@ function CheckFastDraw (&$aunits, &$aslot, &$ahull, $aobjs, $attackers, &$dunits
 
     for ($i=0; $i<$dobjs; $i++) {
 
-        $slot_id = ord($dslot{$i});
-        $gid = ord($dunits{$i}) + 200;
+        $slot_id = ord($dslot[$i]);
+        $gid = ord($dunits[$i]) + 200;
         $hull_max = $UnitParam[$gid][0] * 0.1 * (10+$defenders[$slot_id]['armr']) / 10;
 
         if (get_packed_word($dhull, $i) != $hull_max) return false;
@@ -444,7 +444,7 @@ function DoBattle (&$res, $Rapidfire, $fid, $did)
             for ($i=0; $i<$aobjs; $i++) {
                 $rapidfire = 1;
 
-                if (ord($slot_att{$i}) == $slot) {
+                if (ord($slot_att[$i]) == $slot) {
                     // The shot.
                     while ($rapidfire) {
                         $idx = mt_rand (0, $dobjs - 1);
@@ -455,8 +455,8 @@ function DoBattle (&$res, $Rapidfire, $fid, $did)
                         $shoots[0]++;
                         $spower[0] += $apower;
 
-                        $atyp = ord($obj_att{$i}) + 200;
-                        $dtyp = ord($obj_def{$idx}) + 200;
+                        $atyp = ord($obj_att[$i]) + 200;
+                        $dtyp = ord($obj_def[$idx]) + 200;
                         $rapidfire = RapidFire ($atyp, $dtyp);
 
                         if ($Rapidfire == 0) $rapidfire = 0;
@@ -470,7 +470,7 @@ function DoBattle (&$res, $Rapidfire, $fid, $did)
             for ($i=0; $i<$dobjs; $i++) {
                 $rapidfire = 1;
 
-                if (ord($slot_def{$i}) == $slot) {
+                if (ord($slot_def[$i]) == $slot) {
                     // The shot.
                     while ($rapidfire) {
                         $idx = mt_rand (0, $aobjs - 1);
@@ -481,8 +481,8 @@ function DoBattle (&$res, $Rapidfire, $fid, $did)
                         $shoots[1]++;
                         $spower[1] += $apower;
 
-                        $atyp = ord($obj_def{$i}) + 200;
-                        $dtyp = ord($obj_att{$idx}) + 200;
+                        $atyp = ord($obj_def[$i]) + 200;
+                        $dtyp = ord($obj_att[$idx]) + 200;
                         $rapidfire = RapidFire ($atyp, $dtyp);
 
                         if ($Rapidfire == 0) $rapidfire = 0;
@@ -549,10 +549,10 @@ function DoBattle (&$res, $Rapidfire, $fid, $did)
             }
 
             for ($i=0; $i<$aobjs; $i++) {
-                if (ord($slot_att{$i}) != $slot) {
+                if (ord($slot_att[$i]) != $slot) {
                     continue;
                 }
-                $obj_id = ord($obj_att{$i}) + 200;
+                $obj_id = ord($obj_att[$i]) + 200;
                 $r['attackers'][$slot][$obj_id]++;
             }
         }
@@ -575,10 +575,10 @@ function DoBattle (&$res, $Rapidfire, $fid, $did)
             }
 
             for ($i=0; $i<$dobjs; $i++) {
-                if (ord($slot_def{$i}) != $slot) {
+                if (ord($slot_def[$i]) != $slot) {
                     continue;
-                }                
-                $obj_id = ord($obj_def{$i}) + 200;
+                }
+                $obj_id = ord($obj_def[$i]) + 200;
                 $r['defenders'][$slot][$obj_id]++;
             }
         }
@@ -850,5 +850,4 @@ Defender0 = ({Defender0} 3270 3 119 4 0 0 0 0 0 500 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
 if ($battle_debug) {
     BattleDebug();
 }
-
 ?>
