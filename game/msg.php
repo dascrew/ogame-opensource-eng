@@ -152,7 +152,11 @@ function LoadMessage ( $msg_id )
     else return NULL;
 }
 
-// Delete all messages
+/**
+ * Deletes all messages belonging to the specified user.
+ *
+ * @param int $player_id The ID of the user whose messages will be deleted.
+ */
 function DeleteAllMessages ($player_id)
 {
     global $db_prefix;
@@ -160,7 +164,16 @@ function DeleteAllMessages ($player_id)
     dbquery ($query);
 }
 
-// Get msg_id of the shared spy report for the specified planet. If there is no report, return 0.
+/**
+ * Retrieves the message ID of the most recent shared spy report for a given planet.
+ *
+ * If an alliance ID is provided, searches for the latest spy report shared by any member of that alliance for the specified planet. Otherwise, searches for the latest spy report owned by the specified player. Returns 0 if no such report exists.
+ *
+ * @param int $planet_id The ID of the planet for which to find the spy report.
+ * @param int $player_id The player ID to search for if no alliance is specified.
+ * @param int $ally_id The alliance ID to search within; if zero, only the player is considered.
+ * @return int The message ID of the found spy report, or 0 if none exists.
+ */
 function GetSharedSpyReport($planet_id, $player_id, $ally_id)
 {
     global $db_prefix;
