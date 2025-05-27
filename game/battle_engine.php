@@ -850,5 +850,4 @@ Defender0 = ({Defender0} 3270 3 119 4 0 0 0 0 0 500 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
 if ($battle_debug) {
     BattleDebug();
 }
-
 ?>
