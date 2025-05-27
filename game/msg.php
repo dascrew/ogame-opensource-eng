@@ -161,22 +161,25 @@ function DeleteAllMessages ($player_id)
 }
 
 // Get msg_id of the shared spy report for the specified planet. If there is no report, return 0.
-function GetSharedSpyReport ($planet_id, $player_id, $ally_id)
+function GetSharedSpyReport($planet_id, $player_id, $ally_id)
 {
     global $db_prefix;
-    if ($ally_id != 0) {
-        $sub_query = "SELECT player_id FROM ".$db_prefix."users WHERE ally_id = $ally_id";
-        $query = "SELECT * FROM ".$db_prefix."messages WHERE pm = 1 AND planet_id = $planet_id AND owner_id IN (".$sub_query.") ORDER BY date DESC LIMIT 1";
+
+    $query = $ally_id != 0
+        ? "SELECT * FROM {$db_prefix}messages WHERE pm = 1 AND planet_id = $planet_id
+           AND owner_id IN (SELECT player_id FROM {$db_prefix}users WHERE ally_id = $ally_id)
+           ORDER BY date DESC LIMIT 1"
+        : "SELECT * FROM {$db_prefix}messages WHERE pm = 1 AND planet_id = $planet_id
+           AND owner_id = $player_id ORDER BY date DESC LIMIT 1";
+
+    $result = dbquery($query);
+
+    if (!$result) {
+        return 0;
     }
-    else {
-        $query = "SELECT * FROM ".$db_prefix."messages WHERE pm = 1 AND planet_id = $planet_id AND owner_id = $player_id ORDER BY date DESC LIMIT 1";
-    }
-    $result = dbquery ($query);
-    if ( $result ) {
-        $msg = dbarray ($result);
-        return $msg['msg_id'];
-    }
-    return 0;
+
+    $msg = dbarray($result);
+    return (is_array($msg) && isset($msg['msg_id'])) ? $msg['msg_id'] : 0;
 }
 
 // Return the number of messages of a certain type (used to show the total number of messages in a folder)
