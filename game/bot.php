@@ -82,7 +82,7 @@ function ExecuteBlock ($queue, $block, $childs )
             $prefix = "";
             foreach ( $childs as $i=>$child ) {
                 if ( strtolower ($child['text']) === "no" ) {
-                    if ( $result == false ) {
+                    if ( !$result ) {
                         if ($bot_trace) {
                             Debug ($block['text'] . " : ".$prefix."NO");
                         }
@@ -90,7 +90,7 @@ function ExecuteBlock ($queue, $block, $childs )
                     }
                     else $block_no = $child['to'];
                 }
-                if ( strtolower ($child['text']) === "yes" && $result == true ) {
+                if ( strtolower ($child['text']) === "yes" && $result) {
                     if ($bot_trace)
                         Debug ($block['text'] . " : YES");
                     $block_id = $child['to']; break;
@@ -261,5 +261,3 @@ function SetVar ( $owner_id, $var, $value )
         AddDBRow ( $var, 'botvars' );
     }
 }
-
-?>
