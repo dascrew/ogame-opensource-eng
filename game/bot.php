@@ -72,7 +72,7 @@ function ExecuteBlock ($queue, $block, $childs )
                 }
                 if (!$done) Debug ( "Не удалось найти метку перехода \"".$block['text']."\"" );
             }
-            else Debug ( "Не удалось загрузить текущую стратегию при обработке перехода." );
+            else Debug ( "Failed to load the current strategy while processing the transition." );
             RemoveQueue ( $queue['task_id'] );
             break;
 
@@ -119,13 +119,13 @@ function ExecuteBlock ($queue, $block, $childs )
                 }    // random jump
             }
             if ( $block_id != 0xdeadbeef ) AddBotQueue ( $BotID, $strat_id, $block_id, $BotNow, 0 );
-            else Debug ( "Не удалось выбрать условный переход." );
+            else Debug ( "Failed to select conditional branch." );
             RemoveQueue ( $queue['task_id'] );
             break;
 
         default:    // Regular block, single output.
             $sleep = eval ( $block['text'] . ";" );
-            if ( $sleep == NULL ) $sleep = 0;
+            if ( $sleep == null ) $sleep = 1;
             $block_id = $childs[0]['to'];
             AddBotQueue ( $BotID, $strat_id, $block_id, $BotNow, $sleep );
             RemoveQueue ( $queue['task_id'] );
@@ -138,7 +138,7 @@ function AddBot ($name)
 {
     global $db_prefix;
 
-    // Сгенерировать пароль.
+    // Generate password
     $len = 8;
     $r = '';
     for($i=0; $i<$len; $i++)
@@ -164,7 +164,16 @@ function StartBot ($player_id)
     $BotID = $player_id;
     $BotNow = time ();
 
-    if ( BotExec("_start") == 0 ) Debug ( "Стартовая стратегия не найдена." );
+    if ( BotExec("_start") == 0 ) Debug ( "Starting strategy not found." );
+    else
+    {
+        $query = "SELECT * FROM queue WHERE type = 'AI' AND owner_id = $player_id ORDER BY task_id LIMIT 1";
+        $result = dbquery ($query);
+        if ( dbrows ($result) > 0 ) {
+            $row = dbarray ($result);
+            Queue_Bot_End ($row);
+        }
+    }
 }
 
 // Stop the bot (just remove all AI tasks)
