@@ -2,7 +2,8 @@
 
 // Bot Management.
 
-require_once "botapi.php";        // API
+require_once "botapi.php";
+require_once "personality.php";
 
 // Global bot variables.
 $BotID = 0;        // ordinal number of the current bot
@@ -136,7 +137,7 @@ function ExecuteBlock ($queue, $block, $childs )
 // Add bot.
 function AddBot ($name)
 {
-    global $db_prefix;
+    global $db_prefix, $PERSONALITIES;
 
     // Generate password
     $len = 8;
@@ -151,9 +152,15 @@ function AddBot ($name)
         dbquery ($query);
         StartBot ( $player_id );
         SetVar ( $player_id, 'password', $pass );
+        $personalities = array_keys($PERSONALITIES);
+        $personality = $personalities[array_rand($personalities)];
+        $subtypes = array_keys($PERSONALITIES[$personality]);
+        $subtype = $subtypes[array_rand($subtypes)];
+        BotSetVar('personality', $personality);
+        BotSetVar('subtype', $subtype);
         return true;
     }
-    else return false;
+    return false;
 }
 
 // Start the bot (execute the Start block for the _start strategy)
