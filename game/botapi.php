@@ -256,7 +256,9 @@ function BotGetShipCount()
     return $ship_counts;
 }
 
-function BotGetBuildingEnergy()
+function BotGetFleetCount($shipTypeId)
 {
-
+    $all_ship_counts = BotGetShipCount();
+    return $all_ship_counts[$shipTypeId] ?? 0;
 }
+
