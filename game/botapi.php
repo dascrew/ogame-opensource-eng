@@ -46,6 +46,10 @@ function BotExec ($name)
     else return 0;
 }
 
+
+
+
+
 // Bot variables.
 
 function BotGetVar ( $var, $def_value=null )
@@ -299,4 +303,109 @@ function CalculateBuildingBaseConsumption($buildingId, $level) {
     }
 
     return max(0, (int)round($consumption));
+}
+
+function calculateShipCosts($shipTypeId, $amount, $initial) {
+    return [
+        'metal'      => ($initial[$shipTypeId][0] ?? 0) * $amount,
+        'crystal'    => ($initial[$shipTypeId][1] ?? 0) * $amount,
+        'deuterium'  => ($initial[$shipTypeId][2] ?? 0) * $amount,
+    ];
+}
+
+const FLIGHT_TIME_BUFFER = 36000;
+function calculateDeuteriumBuffer($shipCount, $shipTypeId, $user, $flightTime = FLIGHT_TIME_BUFFER) {
+    return FlightCons(
+        $shipCount, 1, $flightTime, 10, $shipTypeId,
+        $user['r115'], $user['r117'], $user['r118']
+    );
+}
+
+function validateResources($planet, $costs, $deuteriumBuffer) {
+    if ($planet['m'] < $costs['metal']) {
+        return ['success' => false, 'error' => 'metal'];
+    }
+    if ($planet['k'] < $costs['crystal']) {
+        return ['success' => false, 'error' => 'crystal'];
+    }
+    if (($planet['d'] ?? 0) < ($costs['deuterium'] + $deuteriumBuffer)) {
+        return ['success' => false, 'error' => 'deuterium', 'needed' => $costs['deuterium'] + $deuteriumBuffer - $planet['d']];
+    }
+    return ['success' => true];
+}
+
+function calculateMaxShips($planet, $shipTypeId, $costs, $user, $amount, $currentShipCount) {
+    $maxByMetal   = floor($planet['m'] / ($costs['metal'] / $amount));
+    $maxByCrystal = floor($planet['k'] / ($costs['crystal'] / $amount));
+    $fuelPerShip  = calculateDeuteriumBuffer(1, $shipTypeId, $user);
+
+    $deuteriumAvailable = $planet['d'] - ($currentShipCount * $fuelPerShip);
+    $deuteriumPerShip   = ($costs['deuterium'] / $amount) + $fuelPerShip;
+    $maxByDeuterium     = $deuteriumPerShip > 0 ? floor($deuteriumAvailable / $deuteriumPerShip) : PHP_INT_MAX;
+
+    return max(0, min($amount, $maxByMetal, $maxByCrystal, $maxByDeuterium));
+}
+
+function logResourceError($user, $planet, $shipTypeId, $error, $needed = 0) {
+    $msg = [
+        'metal'     => loca_t($shipTypeId, 'prod') . ': ' . loca('BOT_NOT_ENOUGH_METAL'),
+        'crystal'   => loca_t($shipTypeId, 'prod') . ': ' . loca('BOT_NOT_ENOUGH_CRYSTAL'),
+        'deuterium' => loca_t($shipTypeId, 'prod') . ': ' . loca('BOT_NOT_ENOUGH_DEUTERIUM') . ($needed > 0 ? " (Need $needed more)" : ''),
+        'generic'   => loca_t($shipTypeId, 'prod') . ': ' . loca('BOT_BUILD_FLEET_NO_RESOURCES'),
+    ];
+    AddItem($user['player_id'], $planet['planet_id'], ITEM_MSG, '', $msg[$error] ?? $msg['generic']);
+}
+
+function BotBuildFleetAction($params) {
+    global $db_prefix, $BotID, $BotNow, $GlobalUni, $initial;
+
+    $shipTypeId = $params[0] ?? -1;
+    $amount     = $params[1] ?? 0;
+
+    if ($shipTypeId === -1 || $amount <= 0) {
+        Debug("BotBuildFleetAction: Invalid shipTypeId or amount.");
+        return 0;
+    }
+
+    $user   = LoadUser($BotID);
+    $planet = GetPlanet($user['aktplanet']);
+    $currentShipCount = $planet['f' . $shipTypeId] ?? 0;
+
+    $costs = calculateShipCosts($shipTypeId, $amount, $initial);
+    $deuteriumBuffer = calculateDeuteriumBuffer($currentShipCount + $amount, $shipTypeId, $user);
+
+    $validation = validateResources($planet, $costs, $deuteriumBuffer);
+    if (!$validation['success']) {
+        logResourceError($user, $planet, $shipTypeId, $validation['error'], $validation['needed'] ?? 0);
+        return 0;
+    }
+
+    $maxShips = calculateMaxShips($planet, $shipTypeId, $costs, $user, $amount, $currentShipCount);
+
+    if ($maxShips <= 0) {
+        logResourceError($user, $planet, $shipTypeId, 'generic');
+        return 0;
+    }
+
+    $shipyardResult = AddShipyard($user['player_id'], $planet['planet_id'], $shipTypeId, $maxShips, 0);
+
+    if ($shipyardResult === '') {
+        $speed = $GlobalUni['speed'];
+        $shipyardLevel = $planet["b21"];
+        $naniteLevel   = $planet["b15"];
+        $secondsToWait = ShipyardDuration($shipTypeId, $shipyardLevel, $naniteLevel, $speed);
+
+        AddItem($user['player_id'], $planet['planet_id'], ITEM_MSG, '', loca_t($shipTypeId, 'prod') . ': ' . va(loca('BOT_BUILD_FLEET'), $maxShips));
+
+        if ($maxShips < $amount) {
+            AddItem($user['player_id'], $planet['planet_id'], ITEM_MSG, '', loca_t($shipTypeId, 'prod') . ': ' . va(loca('BOT_BUILD_FLEET_LIMITED'), $maxShips, ($validation['needed'] ?? 0)));
+        }
+
+        UpdatePlanetActivity($planet['planet_id'], $BotNow);
+        return $secondsToWait;
+    } else {
+        Debug("BotBuildFleetAction: AddShipyard failed with message: " . $shipyardResult);
+        AddItem($user['player_id'], $planet['planet_id'], ITEM_MSG, '', loca_t($shipTypeId, 'prod') . ': Shipyard Error: ' . $shipyardResult);
+        return 0;
+    }
 }
