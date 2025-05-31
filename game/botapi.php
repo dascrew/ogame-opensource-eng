@@ -224,4 +224,39 @@ function BotResearch ($obj_id)
     else return 0;
 }
 
-?>
+function BotGetShipCount()
+{
+    global $BotID;
+    global $fleetmap;
+    $ship_counts = array();
+
+    foreach ($fleetmap as $gid) {
+        $ship_counts[$gid] = 0;
+    }
+
+    $player_planets = EnumPlanets($BotID);
+    foreach ($player_planets as $planet) {
+        foreach ($fleetmap as $gid) {
+            $ship_counts[$gid] += (int)($planet["f$gid"] ?? 0);
+        }
+    }
+
+    $query = "SELECT " . implode(", ", array_map(function($gid) {
+        return "ship$gid";
+    }, $fleetmap)) . " FROM fleet WHERE owner_id = " . (int)$BotID;
+    $result = dbquery($query);
+    if ($result) {
+        while ($fleet = dbarray($result)) {
+            foreach ($fleetmap as $gid) {
+                $ship_counts[$gid] += (int)($fleet["ship$gid"] ?? 0);
+            }
+        }
+    }
+
+    return $ship_counts;
+}
+
+function BotGetBuildingEnergy()
+{
+
+}
