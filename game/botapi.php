@@ -1,5 +1,9 @@
 <?php
 
+require_once "game/id.php";
+require_once "game/prod.php";
+
+
 // Interface between bots and the engine.
 // This is where all the built-in functions are located.
 
@@ -262,3 +266,27 @@ function BotGetFleetCount($shipTypeId)
     return $all_ship_counts[$shipTypeId] ?? 0;
 }
 
+
+function CalculateBuildingBaseConsumption($buildingId, $level) {
+    // This function maps the building ID to the correct consumption calculation function
+    // and calls that function with the provided level.
+
+    $consumption = 0;
+
+    switch ($buildingId) {
+        case GID_B_METAL_MINE:
+            $consumption = cons_metal($level);
+            break;
+        case GID_B_CRYS_MINE:
+            $consumption = cons_crys($level);
+            break;
+        case GID_B_DEUT_SYNTH:
+            $consumption = cons_deut($level);
+            break;
+        default:
+            $consumption = 0;
+            break;
+    }
+
+    return max(0, (int)round($consumption));
+}
