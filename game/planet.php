@@ -564,11 +564,17 @@ function AdminPlanetName ($planet_id)
 }
 
 // Return planet coordinate string with a link to the galaxy
-function AdminPlanetCoord ($p)
+function AdminPlanetCoord($p)
 {
     global $session;
-    return "[<a href=\"index.php?page=galaxy&session=$session&galaxy=".$p['g']."&system=".$p['s']."\">".$p['g'].":".$p['s'].":".$p['p']."</a>]";
+
+    $galaxy = is_array($p) ? ($p['g'] ?? '0') : '0';
+    $system = is_array($p) ? ($p['s'] ?? '0') : '0';
+    $planet = is_array($p) ? ($p['p'] ?? '0') : '0';
+
+    return "[<a href=\"index.php?page=galaxy&session=$session&galaxy=$galaxy&system=$system\">$galaxy:$system:$planet</a>]";
 }
+
 
 // Create a home planet, return the ID of the created planet
 function CreateHomePlanet ($player_id)
