@@ -268,6 +268,10 @@ function handleActionBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, 
         case 'BUILD_FLEET':
             $sleep = BotBuildFleetAction($queue['params']);
             break;
+        case 'BUILD_WAIT':
+        $sleep = GetBuildingTime($BotID, 1); 
+        AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
+        break;    
         default:
             $sleep = handleCustomAction($block['text']);
             break;
