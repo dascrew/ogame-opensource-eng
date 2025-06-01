@@ -56,17 +56,28 @@ function Admin_Bots ()
         echo "<tr><td class=c>ID</td><td class=c>".loca("ADM_BOTS_NAME")."</td><td class=c>".loca("ADM_BOTS_HOMEPLANET")."</td><td class=c>".loca("ADM_BOTS_ACTION")."</td></tr>\n";
     }
     while ($rows--) {
-        $queue = dbarray ($result);
-        $user = LoadUser ( $queue['owner_id'] );
-        $planet = GetPlanet ( $user['hplanetid'] );
-        echo "<tr>";
-        echo "<td>".$user['player_id']."</td>";
-        echo "<td>".AdminUserName ($user)."</td>";
-        echo "<td>". AdminPlanetName ($planet['planet_id']). " " . AdminPlanetCoord($planet) . "</td>";
-        echo "<td><a href=\"index.php?page=admin&session=$session&mode=Bots&action=stop&id=".$user['player_id']."\">".loca("ADM_BOTS_STOP")."</a></td>";
-        echo "</tr>\n";
+    $queue = dbarray($result);
+    if (!is_array($queue) || !isset($queue['owner_id'])) {
+        continue;
     }
-    if ( $rowss ) echo "</table>";
+    $user = LoadUser($queue['owner_id']);
+    
+    if (!is_array($user) || !isset($user['hplanetid'], $user['player_id'])) {
+        continue;
+    }
+    $planet = GetPlanet($user['hplanetid']);
+
+    if (!is_array($planet) || !isset($planet['planet_id'])) {
+        continue;
+    }
+
+    echo "<tr>";
+    echo "<td>" . htmlspecialchars($user['player_id']) . "</td>";
+    echo "<td>" . AdminUserName($user) . "</td>";
+    echo "<td>" . AdminPlanetName($planet['planet_id']) . " " . AdminPlanetCoord($planet) . "</td>";
+    echo "<td><a href=\"index.php?page=admin&session=$session&mode=Bots&action=stop&id=" . urlencode($user['player_id']) . "\">" . loca("ADM_BOTS_STOP") . "</a></td>";
+    echo "</tr>\n";
+}
 ?>
 
 <h2><?=loca("ADM_BOTS_ADD");?></h2>
