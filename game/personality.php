@@ -1,6 +1,6 @@
 <?php
 
-require_once 'gmae/id.php';
+require_once 'id.php';
 $PERSONALITIES = [
     'fleeter' => [
         'subtypes' => [
@@ -93,7 +93,7 @@ $PERSONALITIES = [
             GID_B_MISS_SILO => 4,
         ],
         'priority_buildings' => [
-            GID_B_ROBOTS, GID_B_SHIPYARD, GID_B_SOLAR, 
+            GID_B_ROBOTS, GID_B_SHIPYARD, GID_B_SOLAR,
             GID_B_METAL_MINE, GID_B_CRYS_MINE, GID_B_DEUT_SYNTH,
             GID_B_METAL_STOR, GID_B_CRYS_STOR, GID_B_DEUT_STOR,
             GID_B_NANITES, GID_B_MISS_SILO, GID_B_LUNAR_BASE,

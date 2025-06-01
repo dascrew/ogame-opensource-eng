@@ -1,7 +1,7 @@
 <?php
 
-require_once "game/id.php";
-require_once "game/prod.php";
+require_once "id.php";
+require_once "prod.php";
 
 
 // Interface between bots and the engine.
