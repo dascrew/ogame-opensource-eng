@@ -64,10 +64,11 @@ function handleCondBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, $P
         $PERSONALITIES
     );
 
-    $nextBlock = match ($result) {
-        true => findChildBlock($childs, 'yes'),
-        false => findChildBlock($childs, 'no')
-    };
+    if ($result) {
+    $nextBlock = findChildBlock($childs, 'yes');
+    }    else {
+    $nextBlock = findChildBlock($childs, 'no');
+    }
 
     if ($nextBlock) {
         AddBotQueue($BotID, $strat_id, $nextBlock['to'], $BotNow, 0);
