@@ -186,6 +186,26 @@ function handleStartBlock($queue, $childs, $BotID, $strat_id, $BotNow) {
     RemoveQueue($queue['task_id']);
 }
 
+function handleLabelBlock($queue, $childs, $BotID, $strat_id, $BotNow) {
+    $block_id = $childs[0]['to'] ?? null;
+    
+    foreach ($childs as $child) {
+        if ($child['fromPort'] === "B") {
+            $block_id = $child['to'];
+            break;
+        }
+    }
+
+    if ($block_id) {
+        AddBotQueue($BotID, $strat_id, $block_id, $BotNow, 0);
+    } else {
+        Debug("Label block error: No valid child connections");
+    }
+    
+    RemoveQueue($queue['task_id']);
+}
+
+
 function handleBranchBlock($queue, $block, $BotID, $strat_id, $db_prefix, $BotNow) {
     $result = dbquery("SELECT source FROM {$db_prefix}botstrat WHERE id = $strat_id");
     
@@ -272,7 +292,7 @@ function ExecuteBlock($queue, $block, $childs)
     if (shouldTraceBlock()) {
         debugBlockTrace($block);
     }
-
+    $category = $block['category'] ?? 'Action';
     switch ($block['category']) {
         case "Start":
             handleStartBlock($queue, $childs, $BotID, $strat_id, $BotNow);
