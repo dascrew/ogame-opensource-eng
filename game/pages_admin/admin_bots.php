@@ -41,7 +41,7 @@ function Admin_Bots ()
     }
 ?>
 
-<center><?=$result;?></center>
+<div style="text-align: center;"><?=$result;?></div>
 
 <h2><?=loca("ADM_BOTS_LIST");?></h2>
 
