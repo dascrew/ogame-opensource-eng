@@ -170,6 +170,12 @@ function evaluateCondition($text, $personality, $PERSONALITIES) {
             return checkBuildablePriority($config);
         case 'CAN_RESEARCH':
             return checkResearchablePriority($config);
+        case 'BASIC_DONE':
+            return BotGetBuild(1) >= 4 && BotGetBuild(2) >= 2 && BotGetBuild(4) >= 4;
+        case 'IS_MINER':
+            return BotGetVar('personality', 'miner') === 'miner';
+        case 'IS_FLEETER':
+            return BotGetVar('personality', 'miner') === 'fleeter';      
         default:
             return @eval("return ($text);");
     }
@@ -269,9 +275,10 @@ function handleActionBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, 
             $sleep = BotBuildFleetAction($queue['params']);
             break;
         case 'BUILD_WAIT':
-        $sleep = GetBuildingTime($BotID, 1); 
-        AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
-        break;    
+            $sleep = GetBuildingTime($BotID, 1); 
+            AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
+            break;
+            
         default:
             $sleep = handleCustomAction($block['text']);
             break;
