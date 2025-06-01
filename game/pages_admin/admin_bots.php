@@ -84,7 +84,8 @@ function Admin_Bots ()
 
 <form action="index.php?page=admin&session=<?=$session;?>&mode=Bots" method="POST">
 <table>
-<tr><td><?=loca("ADM_BOTS_NAME");?> <input type=text size=10 name="name" /> <input type=submit value="<?=loca("ADM_BOTS_SUBMIT");?>" /></td></tr>
+<tr><th scope="col"><?=loca("ADM_BOTS_NAME");?></th></tr>
+<tr><td><input type=text size=10 name="name" /> <input type=submit value="<?=loca("ADM_BOTS_SUBMIT");?>" /></td></tr>
 </table>
 </form>
 
