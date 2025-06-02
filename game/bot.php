@@ -34,6 +34,26 @@ function findChildBlock($children, $type) {
     return null;
 }
 
+
+
+// Load user with error checking
+
+
+function GetBuildingTime($playerID, $buildingID) {
+    global $aktplanet, $GlobalUni;
+    $buildingKey = 'b' . $buildingID;
+    $currentLevel = 0;
+    if (is_array($aktplanet) && isset($aktplanet[$buildingKey])) {
+        $currentLevel = $aktplanet[$buildingKey];
+    }
+    $level = $currentLevel + 1;
+    $robots = (is_array($aktplanet) && isset($aktplanet['b14'])) ? $aktplanet['b14'] : 0;
+    $nanites = (is_array($aktplanet) && isset($aktplanet['b15'])) ? $aktplanet['b15'] : 0;
+    $speed = (is_array($GlobalUni) && isset($GlobalUni['speed'])) ? $GlobalUni['speed'] : 1;
+    return BuildDuration($buildingID, $level, $robots, $nanites, $speed);
+}
+
+
 // Add a block to the queue
 function AddBotQueue ($player_id, $strat_id, $block_id, $when, $seconds)
 {
@@ -275,7 +295,8 @@ function handleActionBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, 
             $sleep = BotBuildFleetAction($queue['params']);
             break;
         case 'BUILD_WAIT':
-            $sleep = GetBuildingTime($BotID, 1); 
+            $buildingID = BotGetLastBuilt();
+            $sleep = GetBuildingTime($BotID, $buildingID); 
             AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
             break;
             
@@ -371,7 +392,7 @@ function StartBot ($player_id)
     if ( BotExec("_start") == 0 ) Debug ( "Starting strategy not found." );
     else
     {
-        $query = "SELECT * FROM queue WHERE type = 'AI' AND owner_id = $player_id ORDER BY task_id LIMIT 1";
+        $query = "SELECT * FROM " . $db_prefix . "queue WHERE type = 'AI' AND owner_id = $player_id ORDER BY task_id LIMIT 1";
         $result = dbquery ($query);
         if ( dbrows ($result) > 0 ) {
             $row = dbarray ($result);
