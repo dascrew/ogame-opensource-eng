@@ -50,6 +50,7 @@ function QueueDesc ( $queue )
             $result = dbquery ( $query );
             $strat = dbarray ($result);
             $source = json_decode ( $strat['source'], true );
+            $block_text = '(next block is missing)';
             foreach ( $source['nodeDataArray'] as $i=>$arr ) {
                 if ( $arr['key'] == $block_id ) {
                     $block_text = $arr['text'];
