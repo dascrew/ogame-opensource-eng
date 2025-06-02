@@ -409,3 +409,36 @@ function BotBuildFleetAction($params) {
         return 0;
     }
 }
+
+function BotGetLastBuilt() {
+    global $BotID;
+
+    // 1. Load user data
+    $user = LoadUser($BotID);
+    if (!$user || !isset($user['aktplanet'])) {
+        Debug("Failed to load user or aktplanet missing");
+        return 0;
+    }
+
+    // 2. Get planet data
+    $aktplanet = GetPlanet($user['aktplanet']);
+    if (!is_array($aktplanet) || !isset($aktplanet['planet_id'])) {
+        Debug("Invalid planet data for ID: " . $user['aktplanet']);
+        return 0;
+    }
+
+    // 3. Check last_built in planet data first
+    if (isset($aktplanet['last_built'])) {
+        return $aktplanet['last_built'];
+    }
+
+    // 4. Fallback to build queue inspection
+    $result = GetBuildQueue($aktplanet['planet_id']);
+    $last_building = null;
+    
+    while ($row = dbarray($result)) {
+        $last_building = $row;
+    }
+
+    return $last_building['tech_id'] ?? 0;
+}
