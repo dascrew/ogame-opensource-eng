@@ -217,7 +217,7 @@ function BotResearch ($obj_id)
     $user = LoadUser ($BotID);
     $aktplanet = GetPlanet ( $user['aktplanet'] );
     $level = $aktplanet['r'.$obj_id] + 1;
-    $text = StartResearch ($user[player_id], $user[aktplanet], $obj_id, 0);
+    $text = StartResearch ($user['player_id'], $user['aktplanet'], $obj_id, 0);
     if ( $text === '' ) {
         $speed = $uni['speed'];
         if ($now == 0) $now = time ();
@@ -434,6 +434,10 @@ function BotGetLastBuilt() {
 
     // 4. Fallback to build queue inspection
     $result = GetBuildQueue($aktplanet['planet_id']);
+    if (!$result) {
+        Debug("No build queue found for planet ID: " . $aktplanet['planet_id']);
+        return 0;
+    }
     $last_building = null;
     
     while ($row = dbarray($result)) {

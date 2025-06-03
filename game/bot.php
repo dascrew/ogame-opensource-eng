@@ -324,12 +324,12 @@ function ExecuteBlock($queue, $block, $childs)
     if (shouldTraceBlock()) {
         debugBlockTrace($block);
     }
-    switch ('category') {
+    switch ($block['category']) {
         case "Start":
             handleStartBlock($queue, $childs, $BotID, $strat_id, $BotNow);
             break;
         case "End":
-            handleEndBlock($queue);
+            RemoveQueue($queue['task_id']);
             break;
         case "Label":
             handleLabelBlock($queue, $childs, $BotID, $strat_id, $BotNow);
@@ -385,6 +385,7 @@ function Queue_Bot_End ($queue)
 function StartBot ($player_id)
 {
     global $BotID, $BotNow;
+    global $db_prefix;
 
     $BotID = $player_id;
     $BotNow = time ();
