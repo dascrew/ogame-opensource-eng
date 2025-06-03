@@ -93,6 +93,7 @@ function BotBuild ($obj_id)
         $duration = floor (BuildDuration ( $obj_id, $level, $aktplanet['b14'], $aktplanet['b15'], $speed ));
         BuildEnque ( $user, $user['aktplanet'], $obj_id, 0, $BotNow);
         UpdatePlanetActivity ( $user['aktplanet'], $BotNow );
+        UpdateLastClick($BotID);
         return $duration;
     }
     else return 0;
@@ -181,6 +182,7 @@ function BotBuildFleet ($obj_id, $n)
         $seconds = ShipyardDuration ( $obj_id, $shipyard, $nanits, $speed );
         AddQueue ($user['player_id'], "Shipyard", $aktplanet['planet_id'], $obj_id, $n, $now, $seconds);
         UpdatePlanetActivity ( $user['aktplanet'], $BotNow );
+        UpdateLastClick($BotID);
         return $seconds;
     }
     else return 0;
@@ -227,6 +229,7 @@ function BotResearch ($obj_id)
         else $r_factor = 1.0;
         $seconds = ResearchDuration ( $obj_id, $level, $reslab, $speed * $r_factor);
         UpdatePlanetActivity ( $user['aktplanet'], $BotNow );
+        UpdateLastClick($BotID);
         return $seconds;
     }
     else return 0;
