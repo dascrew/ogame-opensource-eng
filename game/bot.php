@@ -324,7 +324,7 @@ function ExecuteBlock($queue, $block, $childs)
     if (shouldTraceBlock()) {
         debugBlockTrace($block);
     }
-    switch ($block['category']) {
+   switch ($category = $block['category'] ?? '') {
         case "Start":
             handleStartBlock($queue, $childs, $BotID, $strat_id, $BotNow);
             break;
