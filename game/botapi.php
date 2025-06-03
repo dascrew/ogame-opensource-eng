@@ -270,7 +270,7 @@ function BotGetFleetCount($shipTypeId)
     return $all_ship_counts[$shipTypeId] ?? 0;
 }
 
-function BotGetBuildingEnergyCost($buildingId, $current_level, $personality_config, $subtype_config = null)
+function BotGetBuildingEnergyCost($buildingId, $current_level)
 {
     $consumption_current_level = CalculateBuildingBaseConsumption($buildingId, $current_level);
     $consumption_next_level = CalculateBuildingBaseConsumption($buildingId, $current_level + 1);
