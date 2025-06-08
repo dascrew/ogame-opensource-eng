@@ -4,6 +4,7 @@
 
 require_once "botapi.php";
 require_once "personality.php";
+require_once "skills.php";
 
 // Global bot variables.
 $BotID = 0;        // ordinal number of the current bot
@@ -113,7 +114,7 @@ function checkResearchablePriority($config) {
 }
 
 function executeBuildAction($config) {
-    $building_id = GetWeightedBuildingChoice($config);
+    $building_id = GetSkillModifiedBuildingChoice($config);
     if ($building_id !== false && BotCanBuild($building_id)) {
         return BotBuild($building_id);
     }
@@ -121,7 +122,7 @@ function executeBuildAction($config) {
 }
 
 function executeResearchAction($config) {
-    $research_id = GetWeightedResearchChoice($config);
+    $research_id = GetSkillModifiedResearchChoice($config);
     if ($research_id !== false && BotCanResearch($research_id)) {
         return BotResearch($research_id);
     }
@@ -443,6 +444,7 @@ function AddBot ($name)
         }
         BotSetVarNew('personality', $personality);
         BotSetVarNew('subtype', $subtype);
+        BotInitializeSkills($personality);
         return true;
     }
     return false;
