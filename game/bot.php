@@ -105,11 +105,11 @@ function IsBot ($player_id)
 }
 
 function checkBuildablePriority($config) {
-    return GetWeightedBuildingChoice($config);
+    return GetSkillModifiedBuildingChoice($config);
 }
 
 function checkResearchablePriority($config) {
-    return GetWeightedResearchChoice($config);
+    return GetSkillModifiedResearchChoice($config);
 }
 
 function executeBuildAction($config) {
