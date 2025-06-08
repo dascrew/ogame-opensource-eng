@@ -105,30 +105,33 @@ function IsBot ($player_id)
 }
 
 function checkBuildablePriority($config) {
-    if (empty($config['priority_buildings'])) {
-        Debug("No priority buildings in config");
-        return false;
-    }
+    return GetWeightedBuildingChoice($config);
+}
 
-    foreach ($config['priority_buildings'] as $buildingId) {
-        $current = BotGetBuild($buildingId);
-        $cap = $config['building_caps'][$buildingId] ?? 999;
-        
-        if ($current < $cap && BotCanBuild($buildingId)) {
-            Debug("Priority building $buildingId selected (current: $current, cap: $cap)");
-            return $buildingId;
-        }
-    }
-    
-    Debug("All priority buildings at cap or unavailable");
-    return false;
+function checkResearchablePriority($config) {
+    return GetWeightedResearchChoice($config);
 }
 
 function executeBuildAction($config) {
-    foreach ($config['priority_buildings'] ?? [] as $id) {
-        if (BotCanBuild($id)) {
-            return BotBuild($id);
-        }
+    $building_id = GetWeightedBuildingChoice($config);
+    if ($building_id !== false && BotCanBuild($building_id)) {
+        return BotBuild($building_id);
+    }
+    return 0;
+}
+
+function executeResearchAction($config) {
+    $research_id = GetWeightedResearchChoice($config);
+    if ($research_id !== false && BotCanResearch($research_id)) {
+        return BotResearch($research_id);
+    }
+    return 0;
+}
+
+function executeFleetBuildAction($config) {
+    $ship_choice = GetWeightedShipChoice($config);
+    if ($ship_choice !== false) {
+        return BotBuildFleet($ship_choice['ship_id'], $ship_choice['amount']);
     }
     return 0;
 }
@@ -438,11 +441,9 @@ function AddBot ($name)
         if (!isset($PERSONALITIES[$personality]['subtypes'][$subtype])) {
             $subtype = $PERSONALITIES[$personality]['default_subtype'];
         }
-        BotSetVar('personality', $personality);
-        BotSetVar('subtype', $subtype);
+        BotSetVarNew('personality', $personality);
+        BotSetVarNew('subtype', $subtype);
         return true;
     }
     return false;
 }
-
-?>

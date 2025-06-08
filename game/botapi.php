@@ -46,23 +46,54 @@ function BotExec ($name)
     else return 0;
 }
 
-
-
-
-
 // Bot variables.
 
-function BotGetVar ( $var, $def_value=null )
-{
-    global $BotID, $BotNow;
-    return GetVar ( $BotID, $var, $def_value);
+function BotGetVar() {
+    $args = func_get_args();
+    $num_args = func_num_args();
+    
+    if ($num_args >= 2 && is_numeric($args[0]) && $args[0] > 0) {
+        $owner_id = $args[0];
+        $var_name = $args[1];
+        $default_value = $args[2] ?? null;
+        return BotGetVarNew($owner_id, $var_name, $default_value);
+    } else {
+        //use legacy
+        global $BotID;
+        $var = $args[0];
+        $def_value = $args[1] ?? null;
+        
+        if (!isset($BotID)) {
+            return $def_value;
+        }
+        
+        return BotGetVarNew($BotID, $var, $def_value);
+    }
 }
 
-function BotSetVar ( $var, $value )
-{
-    global $BotID, $BotNow;
-    SetVar ( $BotID, $var, $value );
+function BotSetVar() {
+    $args = func_get_args();
+    $num_args = func_num_args();
+    
+    if ($num_args >= 2 && is_numeric($args[0]) && $args[0] > 0) {
+        $owner_id = $args[0];
+        $var_name = $args[1];
+        $value = $args[2];
+        return BotSetVarNew($owner_id, $var_name, $value);
+    } else { 
+        //use legacy
+        global $BotID;
+        $var = $args[0];
+        $value = $args[1];
+        
+        if (!isset($BotID)) {
+            return false;
+        }
+        
+        return BotSetVarNew($BotID, $var, $value);
+    }
 }
+
 
 //------------------------------------------------------------------------------------
 // Construction/demolition of buildings, management of Resouce settings
@@ -235,37 +266,7 @@ function BotResearch ($obj_id)
     else return 0;
 }
 
-function BotGetShipCount()
-{
-    global $BotID;
-    global $fleetmap;
-    $ship_counts = array();
 
-    foreach ($fleetmap as $gid) {
-        $ship_counts[$gid] = 0;
-    }
-
-    $player_planets = EnumPlanets($BotID);
-    foreach ($player_planets as $planet) {
-        foreach ($fleetmap as $gid) {
-            $ship_counts[$gid] += (int)($planet["f$gid"] ?? 0);
-        }
-    }
-
-    $query = "SELECT " . implode(", ", array_map(function($gid) {
-        return "ship$gid";
-    }, $fleetmap)) . " FROM fleet WHERE owner_id = " . (int)$BotID;
-    $result = dbquery($query);
-    if ($result) {
-        while ($fleet = dbarray($result)) {
-            foreach ($fleetmap as $gid) {
-                $ship_counts[$gid] += (int)($fleet["ship$gid"] ?? 0);
-            }
-        }
-    }
-
-    return $ship_counts;
-}
 
 function BotGetFleetCount($shipTypeId)
 {
@@ -448,4 +449,702 @@ function BotGetLastBuilt() {
     }
 
     return $last_building['tech_id'] ?? 0;
+}
+
+/**
+ * @param int $owner_id The bot's owner ID
+ * @param string $var_name The variable name to delete
+ * @return bool True on success, false on failure
+ */
+function BotDeleteVar($owner_id, $var_name) {
+    global $db_prefix;
+    
+    if (!is_numeric($owner_id) || $owner_id <= 0) {
+        Debug("BotDeleteVar: Invalid owner_id provided: " . $owner_id);
+        return false;
+    }
+    
+    if (empty($var_name)) {
+        Debug("BotDeleteVar: Empty var_name provided for owner_id: " . $owner_id);
+        return false;
+    }
+    $var_escaped = mysqli_real_escape_string($GLOBALS['db_connect'], $var_name);
+    $query = "DELETE FROM " . $db_prefix . "botvars WHERE var = '" . $var_escaped . "' AND owner_id = " . intval($owner_id);
+    
+    $result = dbquery($query);
+    
+    if ($result === false) {
+        Debug("BotDeleteVar: Failed to delete variable '$var_name' for owner_id: $owner_id");
+        return false;
+    }
+    Debug("BotDeleteVar: Successfully deleted variable '$var_name' for owner_id: $owner_id");
+    return true;
+}
+
+
+ // Get all variables for a specific bot as an associative array
+function BotGetAllVars($owner_id) {
+    global $db_prefix;
+    
+    if (!is_numeric($owner_id) || $owner_id <= 0) {
+        Debug("BotGetAllVars: Invalid owner_id provided: " . $owner_id);
+        return array();
+    }
+    $query = "SELECT var, value FROM " . $db_prefix . "botvars WHERE owner_id = " . intval($owner_id);
+    $result = dbquery($query);
+    
+    if ($result === false) {
+        Debug("BotGetAllVars: Failed to query variables for owner_id: $owner_id");
+        return array();
+    }
+    $variables = array();
+    
+    if (dbrows($result) > 0) {
+        while ($row = dbarray($result)) {
+            if ($row !== false) {
+                $variables[$row['var']] = $row['value'];
+            }
+        }
+    }
+    
+    Debug("BotGetAllVars: Retrieved " . count($variables) . " variables for owner_id: $owner_id");
+    return $variables;
+}
+
+/**
+ * Enhanced wrapper for BotGetVar that adds validation while using existing function
+ * 
+ * @param int $owner_id The bot's owner ID  
+ * @param string $var_name The variable name to retrieve
+ * @param mixed $default_value Default value if variable doesn't exist
+ * @return mixed The variable value or default value
+ */
+function BotGetVarNew($owner_id, $var_name, $default_value = null) {
+    if (!is_numeric($owner_id) || $owner_id <= 0) {
+        Debug("BotGetVar: Invalid owner_id provided: " . $owner_id);
+        return $default_value;
+    }
+    
+    if (empty($var_name)) {
+        Debug("BotGetVar: Empty var_name provided for owner_id: " . $owner_id);
+        return $default_value;
+    }
+    
+    // Use existing GetVar function
+    return GetVar($owner_id, $var_name, $default_value);
+}
+
+/**
+ * Enhanced wrapper for BotSetVar that adds validation while using existing function
+ * 
+ * @param int $owner_id The bot's owner ID
+ * @param string $var_name The variable name to set  
+ * @param mixed $value The value to store
+ * @return bool True on success, false on failure
+ */
+function BotSetVarNew($owner_id, $var_name, $value) {
+    // Input validation
+    if (!is_numeric($owner_id) || $owner_id <= 0) {
+        Debug("BotSetVar: Invalid owner_id provided: " . $owner_id);
+        return false;
+    }
+    
+    if (empty($var_name)) {
+        Debug("BotSetVar: Empty var_name provided for owner_id: " . $owner_id);
+        return false;
+    }
+    
+    if (is_array($value) || is_object($value)) {
+        $value = serialize($value);
+    } elseif (is_bool($value)) {
+        $value = $value ? '1' : '0';
+    }
+    SetVar($owner_id, $var_name, $value);
+    
+    Debug("BotSetVar: Set variable '$var_name' for owner_id: $owner_id");
+    return true;
+}
+
+/**
+ * Check if a bot variable exists
+ * Uses existing database functions
+ * 
+ * @param int $owner_id The bot's owner ID
+ * @param string $var_name The variable name to check
+ * @return bool True if variable exists, false otherwise
+ */
+function BotVarExists($owner_id, $var_name) {
+    global $db_prefix;
+    
+    // Input validation
+    if (!is_numeric($owner_id) || $owner_id <= 0) {
+        Debug("BotVarExists: Invalid owner_id provided: " . $owner_id);
+        return false;
+    }
+    
+    if (empty($var_name)) {
+        Debug("BotVarExists: Empty var_name provided for owner_id: " . $owner_id);
+        return false;
+    }
+    
+    // Use existing dbquery function with proper escaping
+    $var_escaped = mysqli_real_escape_string($GLOBALS['db_connect'], $var_name);
+    $query = "SELECT id FROM " . $db_prefix . "botvars WHERE var = '" . $var_escaped . "' AND owner_id = " . intval($owner_id) . " LIMIT 1";
+    
+    $result = dbquery($query);
+    
+    if ($result === false) {
+        Debug("BotVarExists: Failed to check variable '$var_name' for owner_id: $owner_id");
+        return false;
+    }
+    
+    return dbrows($result) > 0;
+}
+
+/**
+ * Get count of variables for a specific bot
+ * Uses existing database functions
+ * 
+ * @param int $owner_id The bot's owner ID
+ * @return int Number of variables for the bot, -1 on error
+ */
+function BotGetVarCount($owner_id) {
+    global $db_prefix;
+    
+    if (!is_numeric($owner_id) || $owner_id <= 0) {
+        Debug("BotGetVarCount: Invalid owner_id provided: " . $owner_id);
+        return -1;
+    }
+    
+    $query = "SELECT COUNT(*) as var_count FROM " . $db_prefix . "botvars WHERE owner_id = " . intval($owner_id);
+    $result = dbquery($query);
+    
+    if ($result === false) {
+        Debug("BotGetVarCount: Failed to count variables for owner_id: $owner_id");
+        return -1;
+    }
+    
+    if (dbrows($result) > 0) {
+        $row = dbarray($result);
+        if ($row !== false) {
+            return intval($row['var_count']);
+        }
+    }
+    
+    return 0;
+}
+
+/**
+ * Delete all variables for a specific bot
+ * 
+ * @param int $owner_id The bot's owner ID
+ * @return bool True on success, false on failure
+ */
+function BotDeleteAllVars($owner_id) {
+    global $db_prefix;
+    
+    if (!is_numeric($owner_id) || $owner_id <= 0) {
+        Debug("BotDeleteAllVars: Invalid owner_id provided: " . $owner_id);
+        return false;
+    }
+    
+    $query = "DELETE FROM " . $db_prefix . "botvars WHERE owner_id = " . intval($owner_id);
+    $result = dbquery($query);
+    
+    if ($result === false) {
+        Debug("BotDeleteAllVars: Failed to delete all variables for owner_id: $owner_id");
+        return false;
+    }
+    
+    Debug("BotDeleteAllVars: Successfully deleted all variables for owner_id: $owner_id");
+    return true;
+}
+
+/**
+ * Copy all variables from one bot to another
+ * Uses existing functions for consistency
+ * 
+ * @param int $source_owner_id Source bot's owner ID
+ * @param int $target_owner_id Target bot's owner ID
+ * @param bool $overwrite Whether to overwrite existing variables in target
+ * @return bool True on success, false on failure
+ */
+function BotCopyVars($source_owner_id, $target_owner_id, $overwrite = false) {
+    // Input validation
+    if (!is_numeric($source_owner_id) || $source_owner_id <= 0) {
+        Debug("BotCopyVars: Invalid source_owner_id provided: " . $source_owner_id);
+        return false;
+    }
+    
+    if (!is_numeric($target_owner_id) || $target_owner_id <= 0) {
+        Debug("BotCopyVars: Invalid target_owner_id provided: " . $target_owner_id);
+        return false;
+    }
+    
+    // Get all variables from source bot
+    $source_vars = BotGetAllVars($source_owner_id);
+    
+    if (empty($source_vars)) {
+        Debug("BotCopyVars: No variables found for source owner_id: $source_owner_id");
+        return true; // Not an error, just nothing to copy
+    }
+    
+    $copied_count = 0;
+    
+    // Copy each variable to target bot
+    foreach ($source_vars as $var_name => $value) {
+        // Check if variable exists in target if not overwriting
+        if (!$overwrite && BotVarExists($target_owner_id, $var_name)) {
+            Debug("BotCopyVars: Skipping existing variable '$var_name' for target owner_id: $target_owner_id");
+            continue;
+        }
+        
+        // Use existing SetVar function
+        SetVar($target_owner_id, $var_name, $value);
+        $copied_count++;
+    }
+    
+    Debug("BotCopyVars: Copied $copied_count variables from owner_id $source_owner_id to $target_owner_id");
+    return true;
+}
+
+/**
+ * Validate that required bot variables exist
+ * 
+ * @param int $owner_id The bot's owner ID
+ * @param array $required_vars Array of required variable names
+ * @return array Array of missing variable names, empty if all exist
+ */
+function BotValidateRequiredVars($owner_id, $required_vars) {
+    if (!is_array($required_vars)) {
+        Debug("BotValidateRequiredVars: required_vars must be an array");
+        return array();
+    }
+    
+    $missing_vars = array();
+    
+    foreach ($required_vars as $var_name) {
+        if (!BotVarExists($owner_id, $var_name)) {
+            $missing_vars[] = $var_name;
+        }
+    }
+    
+    if (!empty($missing_vars)) {
+        Debug("BotValidateRequiredVars: Missing variables for owner_id $owner_id: " . implode(', ', $missing_vars));
+    }
+    
+    return $missing_vars;
+}
+
+/**
+ * Calculate how many ships to build based on resources, personality, and game state
+ *
+ * @param int $ship_id Ship type ID
+ * @param array $config Personality configuration
+ * @return int Number of ships to build
+ */
+function CalculateShipBuildAmount($ship_id, $config) {
+    global $BotID, $initial;
+    
+    // Load current game state
+    $user = LoadUser($BotID);
+    $planet = GetPlanet($user['aktplanet']);
+    
+    // Get current ship count for this type
+    $current_ships = BotGetFleetCount($ship_id);
+    
+    // Calculate base amount from personality weights
+    $ship_weight = $config['ship_weights'][$ship_id] ?? 1;
+    
+    // Convert weight to base build amount using personality-specific scaling
+    $base_amount = calculateBaseAmountFromWeight($ship_weight, $config['personality'], $ship_id, $current_ships);
+    
+    // Apply subtype modifiers from your existing system
+    $subtype_modifiers = array(
+        'speed' => 1.5, 'smasher' => 0.8, 'swarm' => 2.0, 'balanced' => 1.0,
+        'pure' => 0.6, 'trader' => 1.2, 'research' => 0.4, 'fortress' => 0.3,
+        'merchant' => 1.3, 'opportunist' => 1.4, 'pirate' => 1.6
+    );
+    
+    $subtype = $config['subtype'];
+    $modifier = $subtype_modifiers[$subtype] ?? 1.0;
+    $adjusted_amount = (int)($base_amount * $modifier);
+    
+    // Calculate maximum affordable based on resources
+    if (isset($initial[$ship_id])) {
+        $costs = calculateShipCosts($ship_id, $adjusted_amount, $initial);
+        $deuterium_buffer = calculateDeuteriumBuffer($current_ships + $adjusted_amount, $ship_id, $user);
+        
+        $max_by_resources = calculateMaxShips($planet, $ship_id, $costs, $user, $adjusted_amount, $current_ships);
+        $adjusted_amount = min($adjusted_amount, $max_by_resources);
+    }
+    
+    // Apply minimum build thresholds
+    $adjusted_amount = applyMinimumBuildThresholds($adjusted_amount, $ship_id);
+    
+    // Final validation
+    if ($adjusted_amount > 0 && !BotCanBuildShip($ship_id)) {
+        return 0;
+    }
+    
+    return max(0, $adjusted_amount);
+}
+
+/**
+ * Convert personality weight to actual build amount with dynamic scaling
+ * Uses personality-specific scaling factors and diminishing returns
+ */
+function calculateBaseAmountFromWeight($weight, $personality, $ship_id, $current_ships) {
+    // Personality-specific scaling factors
+    $personality_scales = array(
+        'fleeter' => array(
+            'combat_ships' => array(204, 205, 206, 207, 213, 215),
+            'scale' => 0.8
+        ),
+        'miner' => array(
+            'cargo_ships' => array(202, 203, 209),
+            'scale' => 1.2,
+            'production_scaling' => true  // Miners scale with production needs
+        ),
+        'turtle' => array(
+            'utility_ships' => array(210, 212),
+            'scale' => 0.4
+        ),
+        'trader' => array(
+            'cargo_ships' => array(202, 203),
+            'scale' => 1.0,
+            'production_scaling' => true  // Traders scale with economic activity
+        ),
+        'raider' => array(
+            'raid_ships' => array(202, 204, 205),
+            'scale' => 0.9
+        )
+    );
+    
+    $scale = 0.5; // Default scale
+    $use_production_scaling = false;
+    
+    if (isset($personality_scales[$personality])) {
+        $personality_data = $personality_scales[$personality];
+        
+        // Check if this ship type gets special scaling for this personality
+        foreach ($personality_data as $ship_category => $ship_ids) {
+            if (is_array($ship_ids) && in_array($ship_id, $ship_ids)) {
+                $scale = $personality_data['scale'];
+                $use_production_scaling = $personality_data['production_scaling'] ?? false;
+                break;
+            }
+        }
+    }
+    
+    // Apply diminishing returns based on current fleet size
+    $diminishing_factor = calculateDiminishingReturns($current_ships, $ship_id, $config);
+    
+    // For miners and traders, scale cargo ships with production capacity
+    if ($use_production_scaling && in_array($ship_id, [202, 203])) {
+        $production_factor = calculateProductionScaling($personality);
+        $scale *= $production_factor;
+    }
+    
+    // Convert weight (0-45 range) to build amount with diminishing returns
+    $base_amount = max(1, (int)($weight * $scale * $diminishing_factor));
+    
+    return $base_amount;
+}
+
+/**
+ * Calculate diminishing returns based on current fleet size
+ */
+function calculateDiminishingReturns($current_ships, $ship_id, $config) {
+    $ship_weight = $config['ship_weights'][$ship_id] ?? 1;
+    
+    // Define weight categories for different diminishing curves
+    if ($ship_weight >= 25) {
+        // High priority ships - very slow diminishing
+        $threshold = $ship_weight * 2;
+        $rate = 0.008;
+    } elseif ($ship_weight >= 15) {
+        // Medium priority ships - moderate diminishing
+        $threshold = $ship_weight * 1.5;
+        $rate = 0.015;
+    } elseif ($ship_weight >= 8) {
+        // Low priority ships - faster diminishing
+        $threshold = $ship_weight;
+        $rate = 0.025;
+    } else {
+        // Very low priority ships - rapid diminishing
+        $threshold = max(3, $ship_weight * 0.5);
+        $rate = 0.04;
+    }
+    
+    if ($current_ships > $threshold) {
+        $excess = $current_ships - $threshold;
+        return max(0.1, 1.0 - ($excess * $rate));
+    }
+    
+    return 1.0;
+}
+
+/**
+ * Calculate production scaling factor
+ */
+function calculateProductionScaling($personality) {
+    global $BotID;
+    
+    if (!in_array($personality, ['miner', 'trader'])) {
+        return 1.0;
+    }
+    
+    $user = LoadUser($BotID);
+    $planet = GetPlanet($user['aktplanet']);
+    $total_production = ($planet['b1'] ?? 0) + ($planet['b2'] ?? 0) + ($planet['b3'] ?? 0);
+    return max(0.8, min(1.5, 0.8 + ($total_production - 20) * 0.0175));
+}
+
+/**
+ * Apply minimum build thresholds to avoid inefficient single-ship builds
+ */
+function applyMinimumBuildThresholds($amount, $ship_id) {
+    $min_amounts = array(
+        202 => 5,   // Small Cargo - build in batches
+        203 => 3,   // Large Cargo
+        204 => 10,  // Light Fighter - swarm units
+        205 => 5,   // Heavy Fighter
+        210 => 5,   // Probes - build several
+        212 => 10   // Satellites - build many
+    );
+    
+    $min_amount = $min_amounts[$ship_id] ?? 1;
+    
+    if ($amount < $min_amount && $amount > 0) {
+        return 0; // Don't build if we can't meet minimum
+    }
+    
+    return $amount;
+}
+
+function BotCanBuildShip($ship_id) {
+    global $BotID, $initial;
+    
+    $user = LoadUser($BotID);
+    if (!$user) {
+        return false;
+    }
+    
+    $planet = GetPlanet($user['aktplanet']);
+    if (!$planet) {
+        return false;
+    }
+    
+    // Check if shipyard exists
+    if (($planet['b21'] ?? 0) < 1) {
+        return false;
+    }
+    
+    // Check if we have the ship definition
+    if (!isset($initial[$ship_id])) {
+        return false;
+    }
+    
+    // Check basic resource requirements for 1 ship
+    $costs = calculateShipCosts($ship_id, 1, $initial);
+    $validation = validateResources($planet, $costs, 0);
+    
+    if (!$validation['success']) {
+        return false;
+    }
+    
+    // Add technology requirement checks here if needed
+    // Example: if ($ship_id == 215 && $user['r118'] < 7) return false; // Battlecruiser needs Hyperspace Drive 7
+    
+    return true;
+}
+
+/**
+ * Get comprehensive bot information using existing infrastructure
+ * 
+ * @param int $bot_id The bot's player ID
+ * @return array|null Bot information array or null if not found/not a bot
+ */
+function GetBotInfo($bot_id) {
+    // Validate input and check if it's a bot
+    if (!is_numeric($bot_id) || $bot_id <= 0 || !IsBot($bot_id)) {
+        Debug("GetBotInfo: Invalid bot_id or not a bot: " . $bot_id);
+        return null;
+    }
+    
+    // Load user and planet data using existing functions
+    $user = LoadUser($bot_id);
+    if (!$user) {
+        Debug("GetBotInfo: Failed to load user data for bot $bot_id");
+        return null;
+    }
+    
+    $planet = GetPlanet($user['aktplanet']);
+    if (!$planet) {
+        Debug("GetBotInfo: Failed to load planet data for bot $bot_id");
+        return null;
+    }
+    
+    // Get bot personality using existing functions
+    $personality = BotGetVarNew($bot_id, 'personality', 'unknown');
+    $subtype = BotGetVarNew($bot_id, 'subtype', 'unknown');
+    
+    // Calculate building and research totals using existing functions
+    $total_buildings = 0;
+    $key_buildings = array();
+    for ($i = 1; $i <= 43; $i++) {
+        $level = BotGetBuild($i);
+        $total_buildings += $level;
+        
+        // Store key buildings
+        $building_names = array(
+            1 => 'metal_mine', 2 => 'crystal_mine', 3 => 'deuterium_synth', 4 => 'solar_plant',
+            14 => 'robotics_factory', 15 => 'nanite_factory', 21 => 'shipyard', 22 => 'research_lab', 31 => 'missile_silo'
+        );
+        if (isset($building_names[$i])) {
+            $key_buildings[$building_names[$i]] = $level;
+        }
+    }
+    
+    $total_research = 0;
+    $key_research = array();
+    for ($i = 106; $i <= 124; $i++) {
+        $level = BotGetResearch($i);
+        $total_research += $level;
+        
+        // Store key research
+        $research_names = array(
+            106 => 'espionage', 108 => 'computer', 109 => 'weapons', 110 => 'shielding', 111 => 'armor',
+            113 => 'energy', 115 => 'combustion_drive', 117 => 'impulse_drive', 118 => 'hyperspace_drive'
+        );
+        if (isset($research_names[$i])) {
+            $key_research[$research_names[$i]] = $level;
+        }
+    }
+    
+    // Get fleet information using existing function
+    $ship_types = array(202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215);
+    $fleet_composition = array();
+    $total_ships = 0;
+    
+    foreach ($ship_types as $ship_id) {
+        $count = BotGetFleetCount($ship_id);
+        if ($count > 0) {
+            $fleet_composition[$ship_id] = $count;
+            $total_ships += $count;
+        }
+    }
+    
+    // Get all bot variables
+    $bot_vars = BotGetAllVars($bot_id);
+    
+    // Calculate activity level
+    $last_activity = $user['lastclick'] ?? 0;
+    $activity_level = calculateActivityLevel($last_activity);
+    
+    // Compile comprehensive bot information
+    return array(
+        // Basic Information
+        'bot_id' => $bot_id,
+        'name' => $user['name'],
+        'email' => $user['email'],
+        'created' => $user['reg_time'],
+        'last_activity' => $last_activity,
+        'is_active' => true, // Already confirmed by IsBot()
+        
+        // Personality & Configuration
+        'personality' => $personality,
+        'subtype' => $subtype,
+        'config_vars_count' => count($bot_vars),
+        'all_vars' => $bot_vars,
+        
+        // Game Statistics
+        'total_points' => $user['total_points'] ?? 0,
+        'total_rank' => $user['total_rank'] ?? 0,
+        'current_planet' => $user['aktplanet'],
+        'planet_name' => $planet['name'] ?? 'Unknown',
+        
+        // Progress Summary
+        'total_building_levels' => $total_buildings,
+        'total_research_levels' => $total_research,
+        'total_fleet_count' => $total_ships,
+        
+        // Current Resources (using your field names)
+        'resources' => array(
+            'metal' => $planet['m'] ?? 0,
+            'crystal' => $planet['k'] ?? 0,
+            'deuterium' => $planet['d'] ?? 0,
+            'energy' => $planet['e'] ?? 0
+        ),
+        
+        // Fleet Composition
+        'fleet_composition' => $fleet_composition,
+        
+        // Key Building Levels
+        'key_buildings' => $key_buildings,
+        
+        // Key Research Levels  
+        'key_research' => $key_research,
+        
+        // Status Information
+        'status' => array(
+            'online' => true,
+            'last_seen' => date('Y-m-d H:i:s', $last_activity),
+            'activity_level' => $activity_level,
+            'bot_age_days' => round((time() - $user['reg_time']) / 86400, 1)
+        )
+    );
+}
+
+/**
+ * Calculate bot activity level based on last activity
+ */
+function calculateActivityLevel($last_activity) {
+    $time_diff = time() - $last_activity;
+    
+    if ($time_diff < 300) return 'very_active';      // < 5 minutes
+    if ($time_diff < 1800) return 'active';         // < 30 minutes  
+    if ($time_diff < 7200) return 'moderate';       // < 2 hours
+    if ($time_diff < 86400) return 'low';           // < 24 hours
+    return 'inactive';                               // > 24 hours
+}
+
+/**
+ * Update bot status using existing variable system
+ */
+function UpdateBotStatus($bot_id, $status) {
+    if (!IsBot($bot_id)) {
+        Debug("UpdateBotStatus: Player $bot_id is not a bot");
+        return false;
+    }
+    
+    BotSetVarNew($bot_id, 'manual_status', $status);
+    BotSetVarNew($bot_id, 'status_updated', time());
+    
+    Debug("UpdateBotStatus: Updated status for bot $bot_id to $status");
+    return true;
+}
+
+/**
+ * Get list of all active bots
+ */
+function GetActiveBots() {
+    global $db_prefix;
+    
+    $query = "SELECT DISTINCT owner_id FROM " . $db_prefix . "queue WHERE type = 'AI'";
+    $result = dbquery($query);
+    
+    $active_bots = array();
+    if ($result && dbrows($result) > 0) {
+        while ($row = dbarray($result)) {
+            $bot_info = GetBotInfo($row['owner_id']);
+            if ($bot_info) {
+                $active_bots[] = $bot_info;
+            }
+        }
+    }
+    
+    Debug("GetActiveBots: Found " . count($active_bots) . " active bots");
+    return $active_bots;
 }
