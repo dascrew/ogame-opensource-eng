@@ -83,6 +83,8 @@ const QTYP_FLEET = "Fleet";                     // Fleet task / IPM attack (sub_
 const QTYP_DEBUG = "Debug";                     // debug event
 const QTYP_AI = "AI";                           // tasks for bot (sub_id - strategy number, obj_id - current block number)
 const QTYP_COUPON = "Coupon";                   // Coupon crediting (the handler is located in coupon.php)
+const QTYP_BOT_SKILL_UPDATE = "BotSkillUpdate";  // Bot skill progression update
+
 
 // Queue task priorities
 const QUEUE_PRIO_LOWEST = 0;            // Consider it no priority
@@ -97,6 +99,8 @@ const QUEUE_PRIO_CLEAN_DEBRIS = 600;
 const QUEUE_PRIO_CLEAN_PLANETS = 700;
 const QUEUE_PRIO_RELOGIN = 777;
 const QUEUE_PRIO_CLEAN_PLAYERS = 900;
+const QUEUE_PRIO_BOT_SKILL = 100;
+
 
 // Add a task to the queue. Returns the ID of the added task.
 function AddQueue ($owner_id, $type, $sub_id, $obj_id, $level, $now, $seconds, $prio=QUEUE_PRIO_LOWEST)
@@ -170,6 +174,7 @@ function UpdateQueue ($until)
             case QTYP_DEBUG: Queue_Debug_End ($queue); break;
             case QTYP_AI: Queue_Bot_End ($queue); break;
             case QTYP_COUPON: break;
+            case QTYP_BOT_SKILL_UPDATE: Queue_BotSkill_End ($queue); break;
 
             case QTYP_COMMANDER_OFF: Queue_Officer_End ($queue); break;
             case QTYP_ADMIRAL_OFF: Queue_Officer_End ($queue); break;
@@ -473,6 +478,19 @@ function BuildDeque ( $user, $planet_id, $listid )
     }
 
     return "";
+}
+
+function Queue_BotSkill_End ($queue)
+{
+    global $BotID;
+    
+    $bot_id = $queue['owner_id'];
+    $old_bot_id = $BotID;
+    $BotID = $bot_id;
+    BotPeriodicSkillIncrease();
+    $BotID = $old_bot_id;
+    RemoveQueue($queue['task_id']);
+    AddBotSkillUpdateEvent($bot_id);
 }
 
 // Completion of construction/demolition
