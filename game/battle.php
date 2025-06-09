@@ -582,6 +582,74 @@ function GravitonAttack ($fleet_obj, $fleet, $when)
     return $result;
 }
 
+function ProcessBattleForBotTrauma($a, $d, $res, $aloss, $dloss, $cm, $ck, $cd) {
+    // Check attackers for trauma
+    foreach ($a as $attacker) {
+        if (IsBot($attacker['player_id'])) {
+            $loss_data = ExtractFleetLossData($attacker, $res, true);
+            if (!empty($loss_data)) {
+                $old_bot_id = $GLOBALS['BotID'] ?? null;
+                $GLOBALS['BotID'] = $attacker['player_id'];
+                
+                if (BotDetectExtremeLoss('fleet', $loss_data)) {
+                    BotHandleExtremeLoss('fleet', $loss_data);
+                }
+                
+                $GLOBALS['BotID'] = $old_bot_id;
+            }
+        }
+    }
+    
+    // Check defenders for trauma
+    foreach ($d as $defender) {
+        if (IsBot($defender['player_id'])) {
+            $old_bot_id = $GLOBALS['BotID'] ?? null;
+            $GLOBALS['BotID'] = $defender['player_id'];
+            
+            // Check fleet losses
+            $fleet_loss_data = ExtractFleetLossData($defender, $res, false);
+            if (!empty($fleet_loss_data) && BotDetectExtremeLoss('fleet', $fleet_loss_data)) {
+                BotHandleExtremeLoss('fleet', $fleet_loss_data);
+            }
+            
+            // Check resource losses (only for planet defender)
+            if (isset($defender['id']) && $defender['id'] > 0) {
+                BotTrackRaidFrequency();
+                $resource_loss_data = ExtractResourceLossData($cm, $ck, $cd);
+                if (!empty($resource_loss_data) && BotDetectExtremeLoss('resources', $resource_loss_data)) {
+                    BotHandleExtremeLoss('resources', $resource_loss_data);
+                }
+            }
+            
+            $GLOBALS['BotID'] = $old_bot_id;
+        }
+    }
+
+     foreach ($a as $attacker) {
+        if (IsBot($attacker['player_id'])) {
+            $old_bot_id = $GLOBALS['BotID'] ?? null;
+            $GLOBALS['BotID'] = $attacker['player_id'];
+            $won_battle = ($res['winner'] === 'attacker');
+            $battle_data = array('ships_involved' => array_sum($attacker['fleet']));
+            BotCombatEventSkillIncrease(true, $won_battle, $battle_data);
+            
+            $GLOBALS['BotID'] = $old_bot_id;
+        }
+    }
+    
+    foreach ($d as $defender) {
+        if (IsBot($defender['player_id'])) {
+            $old_bot_id = $GLOBALS['BotID'] ?? null;
+            $GLOBALS['BotID'] = $defender['player_id'];
+            $won_battle = ($res['winner'] === 'defender');
+            $battle_data = array('ships_involved' => array_sum($defender['fleet']));
+            BotCombatEventSkillIncrease(false, $won_battle, $battle_data);
+            
+            $GLOBALS['BotID'] = $old_bot_id;
+        }
+    }
+}
+
 // Start a battle between attacking fleet_id and defending planet_id.
 function StartBattle ( $fleet_id, $planet_id, $when )
 {
@@ -857,6 +925,7 @@ function StartBattle ( $fleet_id, $planet_id, $when )
     foreach ( $a as $i=>$user ) AdjustStats ( $user['player_id'], $user['points'], $user['fpoints'], 0, '-' );
     foreach ( $d as $i=>$user ) AdjustStats ( $user['player_id'], $user['points'], $user['fpoints'], 0, '-' );
     RecalcRanks ();
+    ProcessBattleForBotTrauma($a, $d, $res, $aloss, $dloss, $cm, $ck, $cd);
 
     // Cleaning up the battle engine's intermediate data
     unlink ( "battledata/battle_".$battle_id.".txt" );
