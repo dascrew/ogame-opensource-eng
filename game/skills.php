@@ -379,3 +379,182 @@ function GetSkillModifiedResearchChoice($config) {
     Debug("GetSkillModifiedResearchChoice: Fallback to research $research_id");
     return $research_id;
 }
+
+function BotIncreaseSkillOverTime($skill_type, $increment = 0.1) {
+    $current_skill = BotGetSkill($skill_type, 50);
+    
+    // Apply diminishing returns - harder to improve at higher levels
+    if ($current_skill >= 90) {
+        $increment *= 0.1; // 10x slower at 90+ skill
+    } elseif ($current_skill >= 80) {
+        $increment *= 0.3; // 3x slower at 80+ skill
+    } elseif ($current_skill >= 70) {
+        $increment *= 0.5; // 2x slower at 70+ skill
+    }
+    
+    $new_skill = min(100, $current_skill + $increment);
+    
+    // Only update if there's actual change (avoid spam)
+    if (floor($new_skill) > floor($current_skill)) {
+        BotSetSkill($skill_type, $new_skill);
+        Debug("BotIncreaseSkillOverTime: Increased {$skill_type} from " . floor($current_skill) . " to " . floor($new_skill));
+    } else {
+        BotSetSkill($skill_type, $new_skill); // Update fractional progress
+    }
+}
+
+/**
+ * Increase skill based on combat events (attacking or being attacked)
+ * 
+ * @param string $skill_type The skill to increase
+ * @param float $increment Amount to increase (default 2.0 for meaningful combat learning)
+ * @param bool $won_battle Whether the bot won the battle (affects learning rate)
+ */
+function BotIncreaseSkillOnCombat($skill_type, $increment = 2.0, $won_battle = true) {
+    $current_skill = BotGetSkill($skill_type, 50);
+    
+    // Learn more from losses than victories (realistic learning)
+    if (!$won_battle) {
+        $increment *= 1.5; // 50% more learning from defeats
+    }
+    
+    // Apply diminishing returns for combat learning too
+    if ($current_skill >= 90) {
+        $increment *= 0.2; // Much slower at high levels
+    } elseif ($current_skill >= 80) {
+        $increment *= 0.4;
+    } elseif ($current_skill >= 70) {
+        $increment *= 0.6;
+    }
+    
+    $new_skill = min(100, $current_skill + $increment);
+    BotSetSkill($skill_type, $new_skill);
+    
+    $result_text = $won_battle ? "victory" : "defeat";
+    Debug("BotIncreaseSkillOnCombat: Increased {$skill_type} from " . floor($current_skill) . " to " . floor($new_skill) . " from {$result_text}");
+}
+
+/**
+ * Function to be called periodically to increase skills over time
+ * Call this daily or weekly for slow, steady progression
+ */
+function BotPeriodicSkillIncrease() {
+    $last_skill_update = BotGetVar('last_skill_time_update', 0);
+    $current_time = time();
+    
+    // Only update once per day to keep progression slow
+    if (($current_time - $last_skill_update) < 86400) {
+        return;
+    }
+    
+    $skill_types = array(
+        'building_management', 
+        'research_planning', 
+        'fleet_operations', 
+        'resource_management', 
+        'combat_assessment', 
+        'timing_coordination', 
+        'espionage_accuracy'
+    );
+    
+    // Very slow daily skill increases (0.1 per day = 36.5 skill points per year)
+    foreach ($skill_types as $skill) {
+        BotIncreaseSkillOverTime($skill, 0.1);
+    }
+    
+    BotSetVar('last_skill_time_update', $current_time);
+    Debug("BotPeriodicSkillIncrease: Daily skill progression applied");
+}
+
+/**
+ * Function to be called on combat events only (attack or defense)
+ *
+ * @param bool $was_attacker Whether bot was the attacker
+ * @param bool $won_battle Whether bot won the battle
+ * @param array $battle_data Additional battle information
+ */
+function BotCombatEventSkillIncrease($was_attacker = true, $won_battle = true, $battle_data = array()) {
+    // Primary combat skills that improve through battle
+    $base_increment = 1.5;
+    
+    // Attackers learn more about fleet operations and timing
+    if ($was_attacker) {
+        BotIncreaseSkillOnCombat('fleet_operations', $base_increment * 1.2, $won_battle);
+        BotIncreaseSkillOnCombat('timing_coordination', $base_increment, $won_battle);
+        BotIncreaseSkillOnCombat('combat_assessment', $base_increment * 0.8, $won_battle);
+    } else {
+        // Defenders learn more about combat assessment and timing
+        BotIncreaseSkillOnCombat('combat_assessment', $base_increment * 1.2, $won_battle);
+        BotIncreaseSkillOnCombat('timing_coordination', $base_increment, $won_battle);
+        BotIncreaseSkillOnCombat('fleet_operations', $base_increment * 0.8, $won_battle);
+    }
+    
+    // Bonus learning for significant battles
+    if (isset($battle_data['ships_involved']) && $battle_data['ships_involved'] > 100) {
+        $combat_skills = array('combat_assessment', 'fleet_operations', 'timing_coordination');
+        foreach ($combat_skills as $skill) {
+            BotIncreaseSkillOnCombat($skill, 0.5, $won_battle); // Bonus learning
+        }
+        Debug("BotCombatEventSkillIncrease: Bonus learning from major battle");
+    }
+    
+    Debug("BotCombatEventSkillIncrease: Combat learning applied - Attacker: " . ($was_attacker ? "Yes" : "No") . ", Won: " . ($won_battle ? "Yes" : "No"));
+}
+
+/**
+ * Calculate skill-based difficulty scaling for opponents
+ * Higher skill bots face tougher challenges
+ *
+ * @return float Difficulty multiplier (1.0 = normal, 1.5 = 50% harder)
+ */
+function BotCalculateDifficultyScaling() {
+    // Calculate overall skill level
+    $skills = array(
+        'building_management' => BotGetSkill('building_management'),
+        'research_planning' => BotGetSkill('research_planning'),
+        'fleet_operations' => BotGetSkill('fleet_operations'),
+        'resource_management' => BotGetSkill('resource_management'),
+        'combat_assessment' => BotGetSkill('combat_assessment'),
+        'timing_coordination' => BotGetSkill('timing_coordination'),
+        'espionage_accuracy' => BotGetSkill('espionage_accuracy')
+    );
+    
+    $average_skill = array_sum($skills) / count($skills);
+    
+    // Scale difficulty based on skill level
+    if ($average_skill >= 90) {
+        $multiplier = 1.8; // Expert level - much harder opponents
+    } elseif ($average_skill >= 80) {
+        $multiplier = 1.5; // Advanced level - harder opponents
+    } elseif ($average_skill >= 70) {
+        $multiplier = 1.3; // Intermediate level - moderately harder
+    } elseif ($average_skill >= 60) {
+        $multiplier = 1.1; // Competent level - slightly harder
+    } else {
+        $multiplier = 1.0; // Novice level - normal difficulty
+    }
+    
+    Debug("BotCalculateDifficultyScaling: Average skill {$average_skill}, difficulty multiplier {$multiplier}");
+    return $multiplier;
+}
+
+function BotApplyAgeBasedSkillProgression() {
+    $bot_creation_time = BotGetVar('bot_creation_time', time());
+    $bot_age_days = (time() - $bot_creation_time) / 86400;
+    $age_bonus = min(10, $bot_age_days * 0.1);
+    
+    if ($age_bonus > 0) {
+        $skill_types = array('building_management', 'research_planning', 'resource_management');
+        
+        foreach ($skill_types as $skill) {
+            $current_skill = BotGetSkill($skill);
+            $target_skill = min(100, 50 + $age_bonus);
+            
+            if ($current_skill < $target_skill) {
+                BotSetSkill($skill, $target_skill);
+            }
+        }
+        
+        Debug("BotApplyAgeBasedSkillProgression: Applied age bonus of {$age_bonus} skill points");
+    }
+}
