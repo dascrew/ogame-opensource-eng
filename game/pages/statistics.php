@@ -85,11 +85,11 @@ BeginContent ();
 ?>
         </select> 
           
-        <input type="hidden" id="sort_per_member" name="sort_per_member" value="<?php echo intval($_REQUEST['sort_per_member']);?>" /> 
+        <input type="hidden" id="sort_per_member" name="sort_per_member" value="<?php echo isset($_REQUEST['sort_per_member']) ? intval($_REQUEST['sort_per_member']) : 0; ?>" />
         <input type=submit value="<?=loca("STAT_SUBMIT");?>"> 
-      </th> 
-    </tr> 
-  </table> 
+      </th>
+    </tr>
+  </table>
   <!-- end head table --> 
     
 </form> 
