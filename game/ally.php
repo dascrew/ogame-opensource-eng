@@ -33,31 +33,34 @@
 // Create alliance. Returns the ID of the alliance.
 function CreateAlly ($owner_id, $tag, $name)
 {
-    global $db_prefix;
-    $tag = mb_substr ($tag, 0, 8, "UTF-8");    // Limit the length of strings
-    $name = mb_substr ($name, 0, 30, "UTF-8");
+    global $db_prefix, $db_connect;
 
-    // Texts and rank names default to the language of the player who creates the alliance
+    $tag = mb_substr ($tag, 0, 8, "UTF-8");
+    $name = mb_substr ($name, 0, 30, "UTF-8");
     $user = LoadUser ($owner_id);
     loca_add ( "ally", $user['lang'] );
+    $safe_tag = mysqli_real_escape_string($db_connect, $tag);
+    $safe_name = mysqli_real_escape_string($db_connect, $name);
+    $owner_id = (int)$owner_id;
+    $default_text = loca_lang("ALLY_NEW_DEFAULT_TEXT", $user['lang']);
+    $safe_exttext = mysqli_real_escape_string($db_connect, $default_text);  
+    $query = "INSERT INTO " . $db_prefix . "ally (tag, name, owner_id, exttext) 
+              VALUES ('$safe_tag', '$safe_name', $owner_id, '$safe_exttext')";
+    dbquery($query);
+    $id = mysqli_insert_id($db_connect);
 
-    // Add alliance.
-    $ally = array( null, $tag, $name, $owner_id, "", "", 1, 0, loca_lang("ALLY_NEW_DEFAULT_TEXT", $user['lang']), "", "", 0, "", "", 0, 0,
-                        0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0 );
-    $id = AddDBRow ( $ally, "ally" );
-
-    // Add Founder (0) and Newcomer (1) ranks .
-    SetRank ( $id, AddRank ( $id, loca_lang("ALLY_NEW_RANK_FOUNDER", $user['lang']) ), 0x1FF );
+    if ($id == 0) { return 0; }
+    $founder_rank_id = AddRank ( $id, loca_lang("ALLY_NEW_RANK_FOUNDER", $user['lang']) );
+    SetRank ( $id, $founder_rank_id, 0x1FF );
     SetRank ( $id, AddRank ( $id, loca_lang("ALLY_NEW_RANK_NEWCOMER", $user['lang']) ), 0 );
-
-    // Update the founder user information.
     $joindate = time ();
-    $query = "UPDATE ".$db_prefix."users SET ally_id = $id, joindate = $joindate, allyrank = 0 WHERE player_id = $owner_id";
-    dbquery ($query);
+    $update_query = "UPDATE ".$db_prefix."users SET ally_id = $id, joindate = $joindate, allyrank = $founder_rank_id WHERE player_id = $owner_id";
+    dbquery ($update_query);
 
     return $id;
 }
+
+
 
 // Dismiss the alliance.
 function DismissAlly ($ally_id)
@@ -262,26 +265,24 @@ const ARANK_RIGHT_HAND = 0x100; // 'Right Hand' (required to transfer founder st
 // name: Rank name (CHAR(30))
 // rights: Rights (OR mask)
 
-// Add a rank with zero rights to an alliance. Returns the rank's ordinal number.
+// Add a rank with zero rights to an alliance. Returns the new rank_id.
 function AddRank ($ally_id, $name)
 {
-    global $db_prefix;
-    if ($ally_id <= 0) return 0;
-    $ally = LoadAlly ($ally_id);
-    $rank = array ( $ally['nextrank'], $ally_id, $name, 0 );
-    $opt = " (";
-    foreach ($rank as $i=>$entry)
-    {
-        if ($i != 0) $opt .= ", ";
-        $opt .= "'".$rank[$i]."'";
+    global $db_prefix, $db_connect;
+
+    $ally_id = (int)$ally_id;
+    if ($ally_id <= 0) {
+        return 0;
     }
-    $opt .= ")";
-    $query = "INSERT INTO ".$db_prefix."allyranks VALUES".$opt;
-    dbquery ($query);
-    $query = "UPDATE ".$db_prefix."ally SET nextrank = nextrank + 1 WHERE ally_id = $ally_id";
-    dbquery ($query);
-    return $ally['nextrank'];
+    $safe_name = mysqli_real_escape_string($db_connect, $name);
+    if (empty($safe_name)) {
+        return 0; 
+    }
+    $query = "INSERT INTO ".$db_prefix."allyranks (ally_id, name, rights) VALUES ($ally_id, '$safe_name', 0)";
+    dbquery($query);
+    return mysqli_insert_id($db_connect);
 }
+
 
 // Save rights for rank.
 function SetRank ($ally_id, $rank_id, $rights)
