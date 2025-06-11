@@ -837,7 +837,8 @@ $PERSONALITIES = array(
             )
         )
     )
-)
+                        )
+            );
 
 /**
  * Get personality configuration for weighted decision making
