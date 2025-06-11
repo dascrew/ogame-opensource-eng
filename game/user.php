@@ -615,36 +615,38 @@ function Login ( $login, $pass, $passmd="", $from_validate=0 )
 }
 
 // Recalculation of stats.
-function RecalcStats ($player_id)
+function RecalcStats($player_id)
 {
     global $db_prefix;
     $m = $k = $d = $e = 0;
-    $points = $fpoints = $rpoints = 0;
+    $points = $fpoints = $rpoints = $mpoints = 0;
 
     // Planets/moons + standing fleets
     $query = "SELECT * FROM ".$db_prefix."planets WHERE owner_id = '".$player_id."'";
-    $result = dbquery ($query);
-    $rows = dbrows ($result);
+    $result = dbquery($query);
+    $rows = dbrows($result);
     while ($rows--) {
-        $planet = dbarray ($result);
-        if ( $planet['type'] >= PTYP_DF ) continue;        // only count planets and moons.
-        $pp = PlanetPrice ($planet);
+        $planet = dbarray($result);
+        if ($planet['type'] >= PTYP_DF) continue;        // only count planets and moons.
+        $pp = PlanetPrice($planet);
         $points += $pp['points'];
         $fpoints += $pp['fpoints'];
+        
+        if (isset($pp['mine_pts'])) {
+            $mpoints += $pp['mine_pts'];
+        }
     }
 
     // Research
     global $resmap;
-    $user = LoadUser ($player_id);
-    if ( $user != null )
-    {
-        foreach ($resmap as $i=>$gid) {
+    $user = LoadUser($player_id);
+    if ($user != null) {
+        foreach ($resmap as $i => $gid) {
             $level = $user["r$gid"];
             $rpoints += $level;
             if ($level > 0) {
-                for ( $lv = 1; $lv<=$level; $lv ++ )
-                {
-                    $res = ResearchPrice ( $gid, $lv );
+                for ($lv = 1; $lv <= $level; $lv++) {
+                    $res = ResearchPrice($gid, $lv);
                     $m = $res['m']; $k = $res['k']; $d = $res['d']; $e = $res['e'];
                     $points += ($m + $k + $d);
                 }
@@ -654,33 +656,33 @@ function RecalcStats ($player_id)
 
     // Flying fleets
     global $fleetmap;
-    $result = EnumOwnFleetQueue ( $player_id, 1 );
-    $rows = dbrows ($result);
-    while ($rows--)
-    {
-        $queue = dbarray ( $result );
-        $fleet = LoadFleet ( $queue['sub_id'] );
+    $result = EnumOwnFleetQueue($player_id, 1);
+    $rows = dbrows($result);
+    while ($rows--) {
+        $queue = dbarray($result);
+        $fleet = LoadFleet($queue['sub_id']);
 
-        foreach ( $fleetmap as $i=>$gid ) {        // Fleet
+        foreach ($fleetmap as $i => $gid) {
             $level = $fleet["ship$gid"];
-            if ($level > 0){
-                $res = ShipyardPrice ( $gid );
+            if ($level > 0) {
+                $res = ShipyardPrice($gid);
                 $m = $res['m']; $k = $res['k']; $d = $res['d']; $e = $res['e'];
                 $points += ($m + $k + $d) * $level;
                 $fpoints += $level;
             }
         }
     
-        if ( $fleet['ipm_amount'] > 0 ) {        // IPM
-            $res = ShipyardPrice ( GID_D_IPM );
+        if ($fleet['ipm_amount'] > 0) {       
+            $res = ShipyardPrice(GID_D_IPM);
             $m = $res['m']; $k = $res['k']; $d = $res['d']; $e = $res['e'];
             $points += ($m + $k + $d) * $fleet['ipm_amount'];
         }
     }
 
     $query = "UPDATE ".$db_prefix."users SET ";
-    $query .= "score1=$points, score2=$fpoints, score3=$rpoints WHERE player_id = $player_id AND (banned <> 1 OR admin > 0);";
-    dbquery ($query);
+    $query .= "score1=$points, score2=$fpoints, score3=$rpoints, score4=$mpoints ";
+    $query .= "WHERE player_id = $player_id AND (banned <> 1 OR admin > 0);";
+    dbquery($query);
 }
 
 function AdjustStats ( $player_id, $points, $fpoints, $rpoints, $sign )
@@ -696,8 +698,8 @@ function RecalcRanks ()
 {
     global $db_prefix;
 
-    // Special processing for admins
-    $query = "UPDATE ".$db_prefix."users SET score1 = -1, score2 = -1, score3 = -1 WHERE admin > 0";
+    // Special processing for admins - ADD score4 here
+    $query = "UPDATE ".$db_prefix."users SET score1 = -1, score2 = -1, score3 = -1, score4 = -1 WHERE admin > 0";
     dbquery ($query);
 
     // Points
@@ -721,10 +723,18 @@ function RecalcRanks ()
               ORDER BY score3 DESC";
     dbquery ($query);
 
-    // Special processing for admins
-    $query = "UPDATE ".$db_prefix."users SET place1 = 0, place2 = 0, place3 = 0 WHERE admin > 0";
+    // Mines
+    dbquery ("SET @pos := 0;");
+    $query = "UPDATE ".$db_prefix."users
+              SET place4 = (SELECT @pos := @pos+1)
+              ORDER BY score4 DESC";
+    dbquery ($query);
+
+    // Special processing for admins - ADD place4 here
+    $query = "UPDATE ".$db_prefix."users SET place1 = 0, place2 = 0, place3 = 0, place4 = 0 WHERE admin > 0";
     dbquery ($query);
 }
+
 
 // Log out all the players
 function UnloadAll ()

@@ -369,46 +369,61 @@ function ProdResources ( &$planet, $time_from, $time_to )
 }
 
 // The cost of the planet in points.
-function PlanetPrice ($planet)
-{
-    $pp = array ();
+function PlanetPrice($planet, $include_mines = true) {
+    $pp = array();
     global $buildmap;
     global $fleetmap;
     global $defmap;
 
     $m = $k = $d = $e = 0;
-    $pp['points'] = $pp['fpoints'] = $pp['fleet_pts'] = $pp['defense_pts'] = 0;
+    $pp['points'] = $pp['fpoints'] = $pp['fleet_pts'] = $pp['defense_pts'] = $pp['mine_pts'] = 0;
+    $mine_buildings = array(1, 2, 3);
 
-    foreach ( $buildmap as $i=>$gid ) {        // Buildings
+    // Buildings calculation
+    foreach ($buildmap as $i => $gid) {
         $level = $planet["b$gid"];
-        if ($level > 0){
-            for ( $lv = 1; $lv<=$level; $lv ++ )
-            {
-                $res = BuildPrice ( $gid, $lv );
+        if ($level > 0) {
+            $building_points = 0;
+            
+            for ($lv = 1; $lv <= $level; $lv++) {
+                $res = BuildPrice($gid, $lv);
                 $m = $res['m']; $k = $res['k']; $d = $res['d']; $e = $res['e'];
-                $pp['points'] += ($m + $k + $d);
+                $building_cost = ($m + $k + $d);
+                $building_points += $building_cost;
+            
+                if (in_array($gid, $mine_buildings)) {
+                    $pp['mine_pts'] += $building_cost;
+                }
+            }
+            
+            if ($include_mines || !in_array($gid, $mine_buildings)) {
+                $pp['points'] += $building_points;
             }
         }
     }
 
-    foreach ( $fleetmap as $i=>$gid ) {        // Fleet
+    // Fleet calculations
+    foreach ($fleetmap as $i => $gid) {
         $level = $planet["f$gid"];
-        if ($level > 0){
-            $res = ShipyardPrice ( $gid);
+        if ($level > 0) {
+            $res = ShipyardPrice($gid);
             $m = $res['m']; $k = $res['k']; $d = $res['d']; $e = $res['e'];
-            $pp['points'] += ($m + $k + $d) * $level;
-            $pp['fleet_pts'] += ($m + $k + $d) * $level;
+            $fleet_cost = ($m + $k + $d) * $level;
+            $pp['points'] += $fleet_cost;
+            $pp['fleet_pts'] += $fleet_cost;
             $pp['fpoints'] += $level;
         }
     }
 
-    foreach ( $defmap as $i=>$gid ) {        // Defense
+    // Defense calculations
+    foreach ($defmap as $i => $gid) {
         $level = $planet["d$gid"];
-        if ($level > 0){
-            $res = ShipyardPrice ( $gid );
+        if ($level > 0) {
+            $res = ShipyardPrice($gid);
             $m = $res['m']; $k = $res['k']; $d = $res['d']; $e = $res['e'];
-            $pp['points'] += ($m + $k + $d) * $level;
-            $pp['defense_pts'] += ($m + $k + $d) * $level;
+            $defense_cost = ($m + $k + $d) * $level;
+            $pp['points'] += $defense_cost;
+            $pp['defense_pts'] += $defense_cost;
         }
     }
 
