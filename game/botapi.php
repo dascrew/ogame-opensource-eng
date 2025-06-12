@@ -1110,9 +1110,6 @@ function calculateActivityLevel($last_activity) {
     return 'inactive';                               // > 24 hours
 }
 
-/**
- * Update bot status using existing variable system
- */
 function UpdateBotStatus($bot_id, $status) {
     if (!IsBot($bot_id)) {
         Debug("UpdateBotStatus: Player $bot_id is not a bot");
@@ -1126,9 +1123,6 @@ function UpdateBotStatus($bot_id, $status) {
     return true;
 }
 
-/**
- * Get list of all active bots
- */
 function GetActiveBots() {
     global $db_prefix;
     
@@ -1147,4 +1141,111 @@ function GetActiveBots() {
     
     Debug("GetActiveBots: Found " . count($active_bots) . " active bots");
     return $active_bots;
+}
+
+function BotGetFilteredRankings($category = 'ressources', $limit = 100) {
+    global $db_prefix;
+
+    // Map
+    $rank_column_map = array(
+        'ressources' => 'place1',
+        'fleet' => 'place2',
+        'research' => 'place3',
+        'mine' => 'place4'
+    );
+    $order_by = $rank_column_map[$category] ?? 'place1';
+
+    // Get a list of all active bot IDs from the queue.
+    $bot_ids_query = dbquery("SELECT DISTINCT owner_id FROM ".$db_prefix."queue WHERE type = 'AI'");
+    $bot_ids = array();
+    while ($row = dbarray($bot_ids_query)) {
+        $bot_ids[] = $row['owner_id'];
+    }
+
+    if (empty($bot_ids)) {
+        return array(); // No active bots found.
+    }
+
+    // Fetch the ranked user data ONLY for players who are bots.
+    $query = "SELECT player_id, oname, ally_id, score1, score2, score3, score4, place1, place2, place3, place4 
+              FROM ".$db_prefix."users 
+              WHERE player_id IN (".implode(",", $bot_ids).") 
+              ORDER BY $order_by ASC 
+              LIMIT $limit";
+              
+    $result = dbquery($query);
+    
+    $bot_rankings = array();
+    while ($row = dbarray($result)) {
+        // Add the bot's personality to the data for easy viewing.
+        $row['personality'] = BotGetVar('personality', 'unknown', $row['player_id']);
+        $bot_rankings[] = $row;
+    }
+
+    Debug("BotGetFilteredRankings: Fetched top $limit bots for category '$category'");
+    return $bot_rankings;
+}
+
+function BotCompareTwoSimple($bot1_id, $bot2_id) {
+    // Load the user data which contains the ranks.
+    $bot1_data = LoadUser($bot1_id);
+    $bot2_data = LoadUser($bot2_id);
+
+    if (!$bot1_data || !$bot2_data) {
+        return null;
+    }
+
+    $comparison = array(
+        'bot1' => array(
+            'name' => $bot1_data['oname'],
+            'personality' => BotGetVar('personality', 'unknown', $bot1_id),
+            'ranks' => array(
+                'overall' => $bot1_data['place1'],
+                'fleet' => $bot1_data['place2'],
+                'research' => $bot1_data['place3'],
+                'mine' => $bot1_data['place4']
+            )
+        ),
+        'bot2' => array(
+            'name' => $bot2_data['oname'],
+            'personality' => BotGetVar('personality', 'unknown', $bot2_id),
+            'ranks' => array(
+                'overall' => $bot2_data['place1'],
+                'fleet' => $bot2_data['place2'],
+                'research' => $bot2_data['place3'],
+                'mine' => $bot2_data['place4']
+            )
+        )
+    );
+
+    return $comparison;
+}
+
+function BotCheckAllianceFit($bot_id, $requirements) {
+    $bot_data = LoadUser($bot_id);
+    if (!$bot_data) return false;
+
+    // Check personality requirement
+    if (isset($requirements['personality'])) {
+        $personality = BotGetVar('personality', 'unknown', $bot_id);
+        if ($personality !== $requirements['personality']) {
+            return false;
+        }
+    }
+
+    // Check rank requirements (lower rank is better)
+    if (isset($requirements['overall_rank_max']) && $bot_data['place1'] > $requirements['overall_rank_max']) {
+        return false;
+    }
+    if (isset($requirements['fleet_rank_max']) && $bot_data['place2'] > $requirements['fleet_rank_max']) {
+        return false;
+    }
+    if (isset($requirements['research_rank_max']) && $bot_data['place3'] > $requirements['research_rank_max']) {
+        return false;
+    }
+    if (isset($requirements['mine_rank_max']) && $bot_data['place4'] > $requirements['mine_rank_max']) {
+        return false;
+    }
+
+    return true; // All requirements passed
 }
