@@ -446,6 +446,7 @@ function AddBot ($name)
         BotSetVarNew('subtype', $subtype);
         BotInitializeSkills($personality);
         AddBotSkillUpdateEvent($BotID);
+        BotInitializeActivityPattern();
         return true;
     }
     return false;
