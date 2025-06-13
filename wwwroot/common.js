@@ -4,23 +4,18 @@ function changeAction(type) {
         alert('<?php echo loca("LOGIN_NOTCHOSEN");?>');
     }
     else {
-        var http ="http://";
-        if (window.location.protocol == "https:") {
-            //check for encryption and set http or https
-            http ="https://";
-        }
         if(type == "login") {
-            var url = http + document.loginForm.universe.value + "/game/reg/login2.php";
-            document.loginForm.action = url;
+            // Always use a relative path for login
+            document.loginForm.action = "/game/reg/login2.php";
         }
         else if (type=="getpw") {
-            var url = http + document.loginForm.universe.value + "/game/reg/mail.php";
-            document.loginForm.action = url;
+            // Always use a relative path for password recovery
+            document.loginForm.action = "/game/reg/mail.php";
             document.loginForm.submit();
         }
         else if(type == "register") {
-            var url = http + document.registerForm.universe.value + "/game/reg/newredirect.php";
-            document.registerForm.action = url;
+            // Always use a relative path for registration
+            document.registerForm.action = "/game/reg/newredirect.php";
         }
     }
 }
