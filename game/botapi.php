@@ -961,10 +961,7 @@ function BotCanBuildShip($ship_id) {
 }
 
 /**
- * Get comprehensive bot information using existing infrastructure
- * 
- * @param int $bot_id The bot's player ID
- * @return array|null Bot information array or null if not found/not a bot
+ * Get comprehensive bot information 
  */
 function GetBotInfo($bot_id) {
     // Validate input and check if it's a bot
@@ -1248,4 +1245,112 @@ function BotCheckAllianceFit($bot_id, $requirements) {
     }
 
     return true; // All requirements passed
+}
+
+function BotInitializeActivityPattern() {
+    global $BotID;
+
+    $sleep_duration_hours = rand(6, 8);
+    $sleep_start_hour = rand(0, 23); 
+    $sleep_end_hour = ($sleep_start_hour + $sleep_duration_hours) % 24;
+    BotSetVar('sleep_window_start', $sleep_start_hour);
+    BotSetVar('sleep_window_end', $sleep_end_hour);
+    BotSetVar('active_session_until', 0);
+
+    Debug("BotInitializeActivityPattern: Bot {$BotID} sleep window set from {$sleep_start_hour}:00 to {$sleep_end_hour}:00.");
+}
+
+/**
+ * Checks if the bot is currently within its designated sleep window.
+ */
+function BotIsAsleep() {
+    $start_hour = BotGetVar('sleep_window_start', 22); 
+    $end_hour = BotGetVar('sleep_window_end', 6);
+    $current_hour = (int)date('G');
+
+    if ($start_hour > $end_hour) {
+        return ($current_hour >= $start_hour || $current_hour < $end_hour);
+    }
+    else {
+        return ($current_hour >= $start_hour && $current_hour < $end_hour);
+    }
+}
+
+/**
+ * Checks if the bot is currently in an "active session".
+ */
+function BotIsInActiveSession() {
+    $session_end_time = BotGetVar('active_session_until', 0);
+    return time() < $session_end_time;
+}
+
+/**
+ * Calculates the time until the next bot action
+ */
+function BotGetNextActionTime() {
+    if (BotIsAsleep()) {
+        $start_hour = (int)BotGetVar('sleep_window_start', 22);
+        $end_hour = (int)BotGetVar('sleep_window_end', 6);
+        $current_hour = (int)date('G');
+        $current_minute = (int)date('i');
+        $current_second = (int)date('s');
+
+        if ($start_hour > $end_hour) { // Crosses midnight
+            $hours_to_wait = ($end_hour - $current_hour + 24) % 24;
+        } else {
+            $hours_to_wait = $end_hour - $current_hour;
+        }
+
+        $seconds_to_wait = ($hours_to_wait * 3600) - ($current_minute * 60) - $current_second;
+        $seconds_to_wait += rand(60, 600); 
+        BotSetVar('active_session_until', 0);
+
+        Debug("BotGetNextActionTime: Bot is asleep. Waiting {$seconds_to_wait} seconds until window ends.");
+        return max(60, $seconds_to_wait); 
+    }
+    
+    if (BotIsInActiveSession()) {
+        $delay = rand(60, 300); 
+        Debug("BotGetNextActionTime: In active session. Next action in {$delay} seconds.");
+        return $delay;
+    }
+
+    $config = GetBotPersonalityConfig();
+    if (!$config) {
+        Debug("BotGetNextActionTime: Could not load personality config. Defaulting to 15 min wait.");
+        return 900;
+    }
+    $activity_pattern = $config['activity_pattern'];
+    $activity_pattern = BotModifyActivityPattern($activity_pattern);
+    $start_session_chance = 30;
+    if (rand(1, 100) <= $start_session_chance) {
+        $session_duration = rand(1800, 7200); 
+        BotSetVar('active_session_until', time() + $session_duration);
+        
+        $delay = rand(60, 300); 
+        Debug("BotGetNextActionTime: Starting new active session for {$session_duration}s. Next action in {$delay}s.");
+        return $delay;
+    } else {
+        $base = $activity_pattern['base_frequency'];
+        $variance = $activity_pattern['variance'] ?? 0;
+        $variance_amount = rand(-$variance, $variance);
+        $delay = $base + $variance_amount;
+
+        Debug("BotGetNextActionTime: Normal idle period. Next action in {$delay} seconds.");
+        return max(300, $delay); 
+    }
+}
+
+/**
+ * A simple helper to check if a bot is socially "online".
+ */
+function BotIsOnline() {
+    return !BotIsAsleep();
+}
+
+/**
+ * Checks if a bot can perform a queued action right now.
+ */
+function CanPerformAction() {
+    return !BotIsAsleep();
 }
