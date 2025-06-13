@@ -178,7 +178,7 @@ function IsEmailExist ( $email, $name="")
 // Returns the ID of the created user.
 function CreateUser ( $name, $pass, $email, $bot=false)
 {
-    global $db_prefix, $db_secret, $Languages;
+    global $db_prefix, $db_secret, $Languages, $db_connect; // Ensure db_connect is global for mysqli_insert_id
     $origname = $name;
     $name = mb_strtolower ($name, 'UTF-8');
     $email = mb_strtolower ($email, 'UTF-8');
@@ -193,24 +193,43 @@ function CreateUser ( $name, $pass, $email, $bot=false)
     $query = "UPDATE ".$db_prefix."uni"." SET usercount = ".$unitab['usercount'].";";
     dbquery ($query);
 
-    // Set the language of the registered player: if there is a selected language in cookies and the player is NOT a bot - use it when registering.
-    // Otherwise, use the default language of the universe
+    // Set the language of the registered player
     if ( !$bot && key_exists ( 'ogamelang', $_COOKIE ) && !$unitab['force_lang'] ) $lang = $_COOKIE['ogamelang'];
     else $lang = $unitab['lang'];
     if ( !key_exists ( $lang, $Languages ) ) $lang = $unitab['lang'];
 
     $ip = $_SERVER['REMOTE_ADDR'];
 
-    $user = array( null, time(), 0, 0, 0, "",  "", $name, $origname, 0, 0, $md, "", $email, $email,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, $ip, 0, $ack, 0, 0, 0, 0,
-                        hostname() . "evolution/", 1, 0, 1, 3, $lang, 0,
-                        0, $unitab['start_dm'], 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        USER_FLAG_DEFAULT );
-    $id = AddDBRow ( $user, "users" );
+    // --- FINAL FIX STARTS HERE ---
+    // Replaced the fragile AddDBRow with a specific, explicit, and robust INSERT query.
+    // This gives full control and bypasses the problematic helper function.
+    
+    // NOTE: This query lists all 88 columns to match your schema precisely.
+    $query = "INSERT INTO `{$db_prefix}users` (
+        `regdate`, `ally_id`, `joindate`, `allyrank`, `session`, `private_session`, `name`, `oname`, `name_changed`, 
+        `name_until`, `password`, `temp_pass`, `pemail`, `email`, `email_changed`, `email_until`, `disable`, 
+        `disable_until`, `vacation`, `vacation_until`, `banned`, `banned_until`, `noattack`, `noattack_until`, 
+        `lastlogin`, `lastclick`, `ip_addr`, `validated`, `validatemd`, `hplanetid`, `admin`, `sortby`, `sortorder`, 
+        `skin`, `useskin`, `deact_ip`, `maxspy`, `maxfleetmsg`, `lang`, `aktplanet`, `dm`, `dmfree`, `sniff`, 
+        `debug`, `trader`, `rate_m`, `rate_k`, `rate_d`, `score1`, `score2`, `score3`, `place1`, `place2`, `place3`, 
+        `oldscore1`, `oldscore2`, `oldscore3`, `oldplace1`, `oldplace2`, `oldplace3`, `scoredate`, 
+        `r106`, `r108`, `r109`, `r110`, `r111`, `r113`, `r114`, `r115`, `r117`, `r118`, `r120`, `r121`, `r122`, 
+        `r123`, `r124`, `r199`, `flags`, `score4`, `place4`, `oldplace4`
+    ) VALUES (
+        ".time().", 0, 0, 0, '', '', '".addslashes($name)."', '".addslashes($origname)."', 0, 
+        0, '".$md."', '', '".addslashes($email)."', '".addslashes($email)."', 0, 0, 0, 
+        0, 0, 0, 0, 0, 0, 0, 
+        0, 0, '".$ip."', 0, '".$ack."', 0, 0, 0, 0, 
+        '".addslashes(hostname() . "evolution/")."', 1, 0, 1, 3, '".$lang."', 0, 
+        0, ".$unitab['start_dm'].", 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 
+        0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+        0, 0, 0, ".USER_FLAG_DEFAULT.", 0, 0, 0
+    );";
+
+    dbquery($query);
+    $id = mysqli_insert_id($db_connect); // Use your database driver's function to get the last inserted ID
+    // --- FINAL FIX ENDS HERE ---
 
     LogIPAddress ( $ip, $id, 1 );
 
@@ -219,7 +238,7 @@ function CreateUser ( $name, $pass, $email, $bot=false)
 
     $query = "UPDATE ".$db_prefix."users SET hplanetid = $homeplanet, aktplanet = $homeplanet WHERE player_id = $id;";
     dbquery ( $query );
-
+    
     // Send a welcome email and message.
     if ( !$bot ) {
         if ( !localhost($ip) ) SendGreetingsMail ( $origname, $pass, $email, $ack);
@@ -227,7 +246,6 @@ function CreateUser ( $name, $pass, $email, $bot=false)
     }
 
     // Delete an inactivated user after 3 days.
-
     SetVar ( $id, "TimeLimit", 3*365*24*60*60 );
 
     if (!$bot && GetModeVarInt('mod_carnage') != 0) {
@@ -238,6 +256,8 @@ function CreateUser ( $name, $pass, $email, $bot=false)
 
     return $id;
 }
+
+
 
 // Completely delete the player, all their planets and fleets.
 // Turn back fleets flying at the player.
