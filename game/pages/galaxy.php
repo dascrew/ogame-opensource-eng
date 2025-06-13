@@ -138,8 +138,6 @@ BeginContent ();
   var new_win = window.open(target_url,win_name,'scrollbars=yes,menubar=no,top=0,left=0,toolbar=no,width=550,height=280,resizable=yes');
   new_win.focus();
   }
-
-
   var IE = document.all?true:false;
 
   function mouseX(e){
@@ -374,7 +372,6 @@ else
 {
 
 /***** Solar system selection menu. *****/
-
 echo "  <center>\n<form action=\"index.php?page=galaxy&no_header=1&session=".$_GET['session']."\" method=\"post\" id=\"galaxy_form\">\n";
 echo "<input type=\"hidden\" name=\"session\" value=\"".$_GET['session']."\">\n";
 echo "<input type=\"hidden\" id=\"auto\" value=\"dr\">\n";
@@ -473,8 +470,10 @@ $phalanx_radius = $aktplanet['b42'] * $aktplanet['b42'] - 1;
 while ($num--)
 {
     $planet = dbarray ($result);
+
+    // This prevents errors on unowned, abandoned, or destroyed planets.
     $user = LoadUser ( $planet['owner_id']);
-    $own = $user['player_id'] == $GlobalUser['player_id'];
+
     for ($p; $p<$planet['p']; $p++) empty_row ($p);
 
     $phalanx = ($system_radius <= $phalanx_radius) && 
@@ -485,7 +484,6 @@ while ($num--)
     // Coord.
     echo "<tr>\n";
     echo "<th width=\"30\"><a href=\"#\"  tabindex=\"".($tabindex++)."\" >".$p."</a></th>\n";
-
     // Planet
     echo "<th width=\"30\">\n";
     if ( $planet['type'] == PTYP_PLANET )
@@ -494,7 +492,7 @@ while ($num--)
         echo "<tr><td class=c colspan=2 >".loca("GALAXY_PLANET")." ".$planet['name']." [".$planet['g'].":".$planet['s'].":".$planet['p']."]</td></tr>";
         echo "<tr><th width=80 ><img src=".GetPlanetSmallImage ( UserSkin(), $planet )." height=75 width=75 /></th>";
         echo "<th align=left >";
-        if ($own)
+        if ($user && $user['player_id'] == $GlobalUser['player_id'])
         {
             echo "<a href=index.php?page=flotten1&session=".$_GET['session']."&galaxy=".$planet['g']."&system=".$planet['s']."&planet=".$planet['p']."&planettype=1&target_mission=4 >".loca("GALAXY_FLEET_DEPLOY")."</a><br />";
             echo "<a href=index.php?page=flotten1&session=".$_GET['session']."&galaxy=".$planet['g']."&system=".$planet['s']."&planet=".$planet['p']."&planettype=1&target_mission=3 >".loca("GALAXY_FLEET_TRANSPORT")."</a><br />";
@@ -523,7 +521,7 @@ while ($num--)
     $ago15 = $now - 15 * 60;
     $ago60 = $now - 60 * 60;
     $akt = "";
-    if (!$own)
+    if ($user && $user['player_id'] != $GlobalUser['player_id'])
     {
         $activity = $planet['lastakt'];
         if ($moon_id && $moon['lastakt'] > $planet['lastakt'] ) $activity = $moon['lastakt'];
@@ -533,9 +531,8 @@ while ($num--)
     if ( $planet['type'] == PTYP_DEST_PLANET ) $planet_name = loca("PLANET_DESTROYED") . $akt;
     else if ( $planet['type'] == PTYP_ABANDONED ) { $planet_name = loca("PLANET_ABANDONED") . $akt; $phalanx = false; }
     else $planet_name = $planet['name'].$akt;
-    if ($phalanx) $planet_name = "<a href='#' onclick=fenster('index.php?page=phalanx&session=$session&scanid=".$planet['owner_id']."&spid=".$planet['planet_id']."',\"Bericht_Phalanx\") title=\"".loca("GALAXY_FLEET_PHALANX")."\">" . $planet_name . "</a>";
+    if ($phalanx && $user) $planet_name = "<a href='#' onclick=fenster('index.php?page=phalanx&session=$session&scanid=".$planet['owner_id']."&spid=".$planet['planet_id']."',\"Bericht_Phalanx\") title=\"".loca("GALAXY_FLEET_PHALANX")."\">" . $planet_name . "</a>";
     echo "<th width=\"130\" style='white-space: nowrap;'>$planet_name</th>\n";
-
     // moon
     echo "<th width=\"30\" style='white-space: nowrap;'>\n";
     if ($moon_id)
@@ -550,14 +547,13 @@ while ($num--)
             echo "<tr><th>".loca("GALAXY_MOON_TEMP")."</td><th>".$moon['temp']."</td></tr>";
             echo "<tr><td colspan=2 class=c >".loca("GALAXY_MOON_ACTIONS")."</td></tr>";
             echo "<tr><th align=left colspan=2 >";
-            if ($own)
+            if ($user && $user['player_id'] == $GlobalUser['player_id'])
             {
                 echo "<a href=index.php?page=flotten1&session=".$_GET['session']."&galaxy=".$moon['g']."&system=".$moon['s']."&planet=".$moon['p']."&planettype=3&target_mission=3 >".loca("GALAXY_FLEET_TRANSPORT")."</a><br />";
                 echo "<a href=index.php?page=flotten1&session=".$_GET['session']."&galaxy=".$moon['g']."&system=".$moon['s']."&planet=".$moon['p']."&planettype=3&target_mission=4 >".loca("GALAXY_FLEET_DEPLOY")."</a><br />";
             }
             else
             {
-                //echo "<font color=#808080 >Шпионаж</font><br><br />";
                 echo "<a href=# onclick=doit(6,".$moon['g'].",".$moon['s'].",".$moon['p'].",3,".$GlobalUser['maxspy'].") >".loca("GALAXY_FLEET_SPY")."</a><br><br />";
                 if ( $show_ipm_button ) echo "<a href=index.php?page=galaxy&no_header=1&session=$session&mode=1&p1=".$moon['g']."&p2=".$moon['s']."&p3=".$moon['p']."&pdd=".$moon['planet_id']."&zp=".$moon['owner_id']." >".loca("GALAXY_FLEET_RAK")."</a><br />";
                 echo "<a href=index.php?page=flotten1&session=".$_GET['session']."&galaxy=".$moon['g']."&system=".$moon['s']."&planet=".$moon['p']."&planettype=3&target_mission=3 >".loca("GALAXY_FLEET_TRANSPORT")."</a><br />";
@@ -593,106 +589,113 @@ href='#' onclick='doit(8, <?=$coord_g;?>, <?=$coord_s;?>, <?=$p;?>, 2, <?=$harve
         }
     }
     echo "</th>\n";
+    
+    // player (status), Alliance, and Actions columns
+    if ($user) {
+        $own = $user['player_id'] == $GlobalUser['player_id'];
 
-    // player (status)
-    // Newbie or Strong or Regular
-    // Priorities of Regular: Vacation Mode -> Blocked -> Long inactive -> Inactive -> No Status
-    $stat = "";
-    echo "<th width=\"150\">\n";
-    if ( !($planet['type'] == PTYP_DEST_PLANET || $planet['type'] == PTYP_ABANDONED) )
-    {
-        echo "<a style=\"cursor:pointer\" onmouseover=\"return overlib('<table width=240 >";
-        echo "<tr><td class=c >".va(loca("GALAXY_USER_TITLE"), $user['oname'], $user['place1'])."</td></tr>";
-        echo "<th><table>";
-        if (!$own)
+        // player (status)
+        echo "<th width=\"150\">\n";
+        if ( !($planet['type'] == PTYP_DEST_PLANET || $planet['type'] == PTYP_ABANDONED) )
         {
-            echo "<tr><td><a href=index.php?page=writemessages&session=".$_GET['session']."&messageziel=".$planet['owner_id']." >".loca("GALAXY_USER_MESSAGE")."</a></td></tr>";
-            echo "<tr><td><a href=index.php?page=buddy&session=".$_GET['session']."&action=7&buddy_id=".$planet['owner_id']." >".loca("GALAXY_USER_BUDDY")."</a></td></tr>";
-        }
-        echo "<tr><td><a href=index.php?page=statistics&session=".$_GET['session']."&start=".(floor($user['place1']/100)*100+1)." >".loca("GALAXY_USER_STATS")."</a></td></tr>";
-        if ($GlobalUser['admin'] >= 2) echo "<tr><td><a href=index.php?page=admin&session=$session&mode=Users&player_id=".$user['player_id'].">".loca("GALAXY_USER_ADMIN")."</a></td></tr>";
-        echo "</table>";
-        echo "</th></table>', STICKY, MOUSEOFF, DELAY, 750, CENTER, OFFSETY, -40 );\" onmouseout=\"return nd();\">\n";
-        if ( IsPlayerNewbie ( $user['player_id'] ) )
-        {
-            $pstat = "noob"; $stat = "<span class='noob'>".loca("GALAXY_LEGEND_NOOB")."</span>";
-        }
-        else if ( IsPlayerStrong ( $user['player_id'] ) )
-        {
-            $pstat = "strong"; $stat = "<span class='strong'>".loca("GALAXY_LEGEND_STRONG")."</span>";
-        }
-        else
-        {
-            $week = time() - 604800;
-            $week4 = time() - 604800*4;
-            $pstat = "normal";
-            if ( $user['lastclick'] <= $week ) { $stat .= "<span class='inactive'>".loca("GALAXY_LEGEND_INACTIVE7")."</span>"; $pstat = "inactive"; }
-            if ( $user['banned'] ) { if(mb_strlen($stat, "UTF-8")) $stat .= " "; $stat .= "<a href='index.php?page=pranger&session=".$_GET['session']."'><span class='banned'>".loca("GALAXY_LEGEND_BANNED")."</span></a>"; $pstat = "banned"; }
-            if ( $user['lastclick'] <= $week4 ) { if(mb_strlen($stat, "UTF-8")) $stat .= " "; $stat .= "<span class='longinactive'>".loca("GALAXY_LEGEND_INACTIVE28")."</span>";  if($pstat !== "banned") $pstat = "longinactive"; }
-            if ( $user['vacation'] ) { if(mb_strlen($stat, "UTF-8")) $stat .= " "; $stat .= "<span class='vacation'>".loca("GALAXY_LEGEND_VACATION")."</span>";  $pstat = "vacation"; }
-        }
-        echo "<span class=\"$pstat\">".$user['oname']."</span></a>\n";
-        if ($pstat !== "normal") echo "($stat)\n";
-    }
-    echo "</th>\n";
-
-    // Alliance
-    if ($user['ally_id'] && !($planet['type'] == PTYP_DEST_PLANET || $planet['type'] == PTYP_ABANDONED) )
-    {
-        $ally = LoadAlly ( $user['ally_id']);
-        $allytext = "<a style=\"cursor:pointer\"\n";
-        $allytext .= "         onmouseover=\"return overlib('<table width=240 ><tr><td class=c >".va(loca("GALAXY_ALLY_TITLE"), $ally['tag'], $ally['place1'], CountAllyMembers($user['ally_id']))."</td></tr><th><table>";
-        $allytext .= "<tr><td><a href=ainfo.php?allyid=".$ally['ally_id']." target=_ally>".loca("GALAXY_ALLY_PAGE")."</a></td></tr>";
-        if ($GlobalUser['ally_id'] != $user['ally_id']) {
-            $allytext .= "<tr><td><a href=index.php?page=bewerben&session=$session&allyid=".$ally['ally_id']." >".loca("GALAXY_ALLY_APPLY")."</a></td></tr>";
-        }
-        $allytext .= "<tr><td><a href=index.php?page=statistics&session=$session&start=".(floor($ally['place1']/100)*100+1)."&who=ally >".loca("GALAXY_ALLY_STATS")."</a></td></tr>";
-        if ($ally['homepage'] !== "") {
-            $allytext .= "<tr><td><a href=redir.php?url=".$ally['homepage']." target=_blank >".loca("GALAXY_ALLY_HOMEPAGE")."</td></tr>";
-        }
-        $allytext .= "</table></th></table>', STICKY, MOUSEOFF, DELAY, 750, CENTER, OFFSETY, -50 );\" onmouseout=\"return nd();\">\n";
-        $allytext .= "   ".$ally['tag']." </a>";
-    }
-    else $allytext = "";
-    echo "<th width=\"80\">$allytext</th>\n";
-
-    // Actions
-    echo "<th width=\"125\" style='white-space: nowrap;'>\n";
-    if ( !($planet['type'] == PTYP_DEST_PLANET || $planet['type'] == PTYP_ABANDONED) && !$own)
-    {
-        if ($prem['commander'] && $GlobalUser['flags'] & USER_FLAG_SHOW_VIEW_REPORT_BUTTON) {
-
-            // If there is a report for both planet and moon, 2 buttons are shown.
-
-            $planet_spy_report = GetSharedSpyReport ($planet['planet_id'], $GlobalUser['player_id'], $GlobalUser['ally_id']);
-            $moon_spy_report = 0;
-            if ($moon_id != 0) {
-                $moon_spy_report = GetSharedSpyReport ($moon_id, $GlobalUser['player_id'], $GlobalUser['ally_id']);
+            // Newbie or Strong or Regular
+            $stat = "";
+            echo "<a style=\"cursor:pointer\" onmouseover=\"return overlib('<table width=240 >";
+            echo "<tr><td class=c >".va(loca("GALAXY_USER_TITLE"), $user['oname'], $user['place1'])."</td></tr>";
+            echo "<th><table>";
+            if (!$own)
+            {
+                echo "<tr><td><a href=index.php?page=writemessages&session=".$_GET['session']."&messageziel=".$planet['owner_id']." >".loca("GALAXY_USER_MESSAGE")."</a></td></tr>";
+                echo "<tr><td><a href=index.php?page=buddy&session=".$_GET['session']."&action=7&buddy_id=".$planet['owner_id']." >".loca("GALAXY_USER_BUDDY")."</a></td></tr>";
             }
-
-            if ($planet_spy_report != 0) {
-                echo "<a href=\"#\" onclick=\"fenster('index.php?page=bericht&session=". $_GET['session'] ."&bericht=". $planet_spy_report ."', 'Bericht_Spionage');\" ><img src=\"".UserSkin()."img/s.gif\" border=\"0\" alt=\"".loca("SPY_REPORT")."\" title=\"".loca("SPY_REPORT")."\" /></a>\n";
+            echo "<tr><td><a href=index.php?page=statistics&session=".$_GET['session']."&start=".(floor($user['place1']/100)*100+1)." >".loca("GALAXY_USER_STATS")."</a></td></tr>";
+            if ($GlobalUser['admin'] >= 2) echo "<tr><td><a href=index.php?page=admin&session=$session&mode=Users&player_id=".$user['player_id'].">".loca("GALAXY_USER_ADMIN")."</a></td></tr>";
+            echo "</table>";
+            echo "</th></table>', STICKY, MOUSEOFF, DELAY, 750, CENTER, OFFSETY, -40 );\" onmouseout=\"return nd();\">\n";
+            if ( IsPlayerNewbie ( $user['player_id'] ) )
+            {
+                $pstat = "noob"; $stat = "<span class='noob'>".loca("GALAXY_LEGEND_NOOB")."</span>";
             }
-
-            if ($moon_spy_report != 0) {
-                echo "<a href=\"#\" onclick=\"fenster('index.php?page=bericht&session=". $_GET['session'] ."&bericht=". $moon_spy_report ."', 'Bericht_Spionage');\" ><img src=\"".UserSkin()."img/s.gif\" border=\"0\" alt=\"".loca("SPY_REPORT")."\" title=\"".loca("SPY_REPORT")."\" /></a>\n";
+            else if ( IsPlayerStrong ( $user['player_id'] ) )
+            {
+                $pstat = "strong"; $stat = "<span class='strong'>".loca("GALAXY_LEGEND_STRONG")."</span>";
             }
+            else
+            {
+                $week = time() - 604800;
+                $week4 = time() - 604800*4;
+                $pstat = "normal";
+                if ( $user['lastclick'] <= $week ) { $stat .= "<span class='inactive'>".loca("GALAXY_LEGEND_INACTIVE7")."</span>"; $pstat = "inactive"; }
+                if ( $user['banned'] ) { if(mb_strlen($stat, "UTF-8")) $stat .= " "; $stat .= "<a href='index.php?page=pranger&session=".$_GET['session']."'><span class='banned'>".loca("GALAXY_LEGEND_BANNED")."</span></a>"; $pstat = "banned"; }
+                if ( $user['lastclick'] <= $week4 ) { if(mb_strlen($stat, "UTF-8")) $stat .= " "; $stat .= "<span class='longinactive'>".loca("GALAXY_LEGEND_INACTIVE28")."</span>";  if($pstat !== "banned") $pstat = "longinactive"; }
+                if ( $user['vacation'] ) { if(mb_strlen($stat, "UTF-8")) $stat .= " "; $stat .= "<span class='vacation'>".loca("GALAXY_LEGEND_VACATION")."</span>";  $pstat = "vacation"; }
+            }
+            echo "<span class=\"$pstat\">".$user['oname']."</span></a>\n";
+            if ($pstat !== "normal") echo "($stat)\n";
+        }
+        echo "</th>\n";
 
+        // Alliance
+        echo "<th width=\"80\">";
+        if ($user['ally_id'] && !($planet['type'] == PTYP_DEST_PLANET || $planet['type'] == PTYP_ABANDONED) )
+        {
+            $ally = LoadAlly ( $user['ally_id']);
+            $allytext = "<a style=\"cursor:pointer\"\n";
+            $allytext .= "         onmouseover=\"return overlib('<table width=240 ><tr><td class=c >".va(loca("GALAXY_ALLY_TITLE"), $ally['tag'], $ally['place1'], CountAllyMembers($user['ally_id']))."</td></tr><th><table>";
+            $allytext .= "<tr><td><a href=ainfo.php?allyid=".$ally['ally_id']." target=_ally>".loca("GALAXY_ALLY_PAGE")."</a></td></tr>";
+            if ($GlobalUser['ally_id'] != $user['ally_id']) {
+                $allytext .= "<tr><td><a href=index.php?page=bewerben&session=$session&allyid=".$ally['ally_id']." >".loca("GALAXY_ALLY_APPLY")."</a></td></tr>";
+            }
+            $allytext .= "<tr><td><a href=index.php?page=statistics&session=$session&start=".(floor($ally['place1']/100)*100+1)."&who=ally >".loca("GALAXY_ALLY_STATS")."</a></td></tr>";
+            if ($ally['homepage'] !== "") {
+                $allytext .= "<tr><td><a href=redir.php?url=".$ally['homepage']." target=_blank >".loca("GALAXY_ALLY_HOMEPAGE")."</td></tr>";
+            }
+            $allytext .= "</table></th></table>', STICKY, MOUSEOFF, DELAY, 750, CENTER, OFFSETY, -50 );\" onmouseout=\"return nd();\">\n";
+            $allytext .= "   ".$ally['tag']." </a>";
+            echo $allytext;
         }
-        if ($GlobalUser['flags'] & USER_FLAG_SHOW_ESPIONAGE_BUTTON) {
-            echo "<a style=\"cursor:pointer\" onclick=\"javascript:doit(6, ".$planet['g'].",".$planet['s'].",".$planet['p'].", 1, ".$GlobalUser['maxspy'].");\"><img src=\"".UserSkin()."img/e.gif\" border=\"0\" alt=\"".loca("GALAXY_FLEET_SPY")."\" title=\"".loca("GALAXY_FLEET_SPY")."\" /></a>\n";
+        echo "</th>\n";
+
+        // Actions
+        echo "<th width=\"125\" style='white-space: nowrap;'>\n";
+        if ( !($planet['type'] == PTYP_DEST_PLANET || $planet['type'] == PTYP_ABANDONED) && !$own)
+        {
+            if ($prem['commander'] && $GlobalUser['flags'] & USER_FLAG_SHOW_VIEW_REPORT_BUTTON) {
+                $planet_spy_report = GetSharedSpyReport ($planet['planet_id'], $GlobalUser['player_id'], $GlobalUser['ally_id']);
+                $moon_spy_report = 0;
+                if ($moon_id != 0) {
+                    $moon_spy_report = GetSharedSpyReport ($moon_id, $GlobalUser['player_id'], $GlobalUser['ally_id']);
+                }
+
+                if ($planet_spy_report != 0) {
+                    echo "<a href=\"#\" onclick=\"fenster('index.php?page=bericht&session=". $_GET['session'] ."&bericht=". $planet_spy_report ."', 'Bericht_Spionage');\" ><img src=\"".UserSkin()."img/s.gif\" border=\"0\" alt=\"".loca("SPY_REPORT")."\" title=\"".loca("SPY_REPORT")."\" /></a>\n";
+                }
+
+                if ($moon_spy_report != 0) {
+                    echo "<a href=\"#\" onclick=\"fenster('index.php?page=bericht&session=". $_GET['session'] ."&bericht=". $moon_spy_report ."', 'Bericht_Spionage');\" ><img src=\"".UserSkin()."img/s.gif\" border=\"0\" alt=\"".loca("SPY_REPORT")."\" title=\"".loca("SPY_REPORT")."\" /></a>\n";
+                }
+            }
+            if ($GlobalUser['flags'] & USER_FLAG_SHOW_ESPIONAGE_BUTTON) {
+                echo "<a style=\"cursor:pointer\" onclick=\"javascript:doit(6, ".$planet['g'].",".$planet['s'].",".$planet['p'].", 1, ".$GlobalUser['maxspy'].");\"><img src=\"".UserSkin()."img/e.gif\" border=\"0\" alt=\"".loca("GALAXY_FLEET_SPY")."\" title=\"".loca("GALAXY_FLEET_SPY")."\" /></a>\n";
+            }
+            if ($GlobalUser['flags'] & USER_FLAG_SHOW_WRITE_MESSAGE_BUTTON) {
+                echo "<a href=\"index.php?page=writemessages&session=".$_GET['session']."&messageziel=".$planet['owner_id']."\"><img src=\"".UserSkin()."img/m.gif\" border=\"0\" alt=\"".loca("GALAXY_USER_MESSAGE")."\" title=\"".loca("GALAXY_USER_MESSAGE")."\" /></a>\n";
+            }
+            if ($GlobalUser['flags'] & USER_FLAG_SHOW_BUDDY_BUTTON) {
+                echo "<a href=\"index.php?page=buddy&session=".$_GET['session']."&action=7&buddy_id=".$planet['owner_id']."\"><img src=\"".UserSkin()."img/b.gif\" border=\"0\" alt=\"".loca("GALAXY_USER_BUDDY")."\" title=\"".loca("GALAXY_USER_BUDDY")."\" /></a>\n";
+            }
+            if ( $show_ipm_button && $GlobalUser['flags'] & USER_FLAG_SHOW_ROCKET_ATTACK_BUTTON ) {
+                echo "<a href=\"index.php?page=galaxy&session=$session&mode=1&p1=".$planet['g']."&p2=".$planet['s']."&p3=".$planet['p']."&pdd=".$planet['planet_id']."&zp=".$planet['owner_id']."\"><img src=\"".UserSkin()."img/r.gif\" border=\"0\" alt=\"".loca("GALAXY_FLEET_RAK")."\" title=\"".loca("GALAXY_FLEET_RAK")."\" /></a>";
+            }
         }
-        if ($GlobalUser['flags'] & USER_FLAG_SHOW_WRITE_MESSAGE_BUTTON) {
-            echo "<a href=\"index.php?page=writemessages&session=".$_GET['session']."&messageziel=".$planet['owner_id']."\"><img src=\"".UserSkin()."img/m.gif\" border=\"0\" alt=\"".loca("GALAXY_USER_MESSAGE")."\" title=\"".loca("GALAXY_USER_MESSAGE")."\" /></a>\n";
-        }
-        if ($GlobalUser['flags'] & USER_FLAG_SHOW_BUDDY_BUTTON) {
-            echo "<a href=\"index.php?page=buddy&session=".$_GET['session']."&action=7&buddy_id=".$planet['owner_id']."\"><img src=\"".UserSkin()."img/b.gif\" border=\"0\" alt=\"".loca("GALAXY_USER_BUDDY")."\" title=\"".loca("GALAXY_USER_BUDDY")."\" /></a>\n";
-        }
-        if ( $show_ipm_button && $GlobalUser['flags'] & USER_FLAG_SHOW_ROCKET_ATTACK_BUTTON ) {
-            echo "<a href=\"index.php?page=galaxy&session=$session&mode=1&p1=".$planet['g']."&p2=".$planet['s']."&p3=".$planet['p']."&pdd=".$planet['planet_id']."&zp=".$planet['owner_id']."\"><img src=\"".UserSkin()."img/r.gif\" border=\"0\" alt=\"".loca("GALAXY_FLEET_RAK")."\" title=\"".loca("GALAXY_FLEET_RAK")."\" /></a>";
-        }
+        echo "</th>\n";
+    } else {
+        // This 'else' block runs if no user was found (i.e., planet is unowned, abandoned, etc.).
+        // It outputs empty cells to keep the table structure intact and prevent errors.
+        echo "<th width=\"150\"></th>"; // Empty player status
+        echo "<th width=\"80\"></th>";  // Empty alliance
+        echo "<th width=\"125\" style='white-space: nowrap;'></th>\n"; // Empty actions
     }
-    echo "</th>\n";
 
     echo "</tr>\n\n";
     $p++;
