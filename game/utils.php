@@ -10,7 +10,7 @@ function scriptname () {
 }
 
 function hostname () {
-    return '/game/';
+    return '/';
 }
 
 function nicenum ($number)
