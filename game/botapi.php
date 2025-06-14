@@ -1584,22 +1584,6 @@ function GetAllyRankByName($alliance_id, $rank_name) {
     return null;
 }
 
-function BotGetStructuredSpyReport($target_planet_id) {
-    global $BotID;
-    $var_name = "spy_report_" . $target_planet_id;
-    $report_s = BotGetVar($var_name, null);
-
-    if ($report_s) {
-        $report = unserialize($report_s);
-        BotDeleteVar($BotID, $var_name);
-
-        if (isset($report['time']) && (time() - $report['time']) < 3600) {
-            return $report;
-        }
-    }
-    return null; 
-}
-
 function BotExecuteAttackSequence() {
     $attack_phase = BotGetVar('attack_phase', 'idle');
 
