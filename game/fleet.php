@@ -674,6 +674,45 @@ function SpyArrive ($queue, $fleet_obj, $fleet, $origin, $target)
     if ($c > 1) $c = 1;
     $counter = $c * 100;
 
+    if (IsBot($origin['owner_id'])) {
+        $spy_data_raw = [
+            'success'   => true,
+            'time'      => $now,
+            'target_planet_id' => $target['planet_id'],
+            'resources' => [
+                'm' => $target['m'],
+                'k' => $target['k'],
+                'd' => $target['d'],
+                'e' => $target['emax']
+            ],
+            'fleet' => [],
+            'defense' => [],
+            'buildings' => [],
+            'research' => []
+        ];
+
+        // Gather fleet data if espionage level is sufficient.
+        if ($level > 0) {
+            foreach ($fleetmap as $gid) { $spy_data_raw['fleet'][$gid] = $target["f$gid"]; }
+        }
+        // Gather defense data.
+        if ($level > 1) {
+            foreach ($defmap as $gid) { $spy_data_raw['defense'][$gid] = $target["d$gid"]; }
+        }
+        // Gather building data.
+        if ($level > 3) {
+            foreach ($buildmap as $gid) { $spy_data_raw['buildings'][$gid] = $target["b$gid"]; }
+        }
+        // Gather research data.
+        if ($level > 5) {
+            foreach ($resmap as $gid) { $spy_data_raw['research'][$gid] = $target_user["r$gid"]; }
+        }
+
+        $var_name = "spy_report_" . $target['planet_id'];
+        BotSetVar($origin['owner_id'], $var_name, serialize($spy_data_raw));
+        Debug("SpyArrive: Stored structured spy report for bot {$origin['owner_id']} on target {$target['planet_id']}.");
+    }
+
     $subj = "\n<span class=\"espionagereport\">\n" .
                 va(loca_lang("SPY_SUBJ", $origin_user['lang']), $target['name']) . "\n" .
                 "<a onclick=\"showGalaxy(".$target['g'].",".$target['s'].",".$target['p'].");\" href=\"#\">[".$target['g'].":".$target['s'].":".$target['p']."]</a>\n";

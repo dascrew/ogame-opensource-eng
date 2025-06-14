@@ -1354,3 +1354,421 @@ function BotIsOnline() {
 function CanPerformAction() {
     return !BotIsAsleep();
 }
+
+function BotAllianceCreate($creator_bot_id) {
+    // Generate a random, unique tag and name.
+    $tag = "BOT-" . rand(100, 999);
+    while (IsAllyTagExist($tag)) {
+        $tag = "BOT-" . rand(100, 999);
+    }
+    $name = "Squad " . $tag;
+    $alliance_id = CreateAlly($creator_bot_id, $tag, $name);
+
+    if (!$alliance_id) {
+        Debug("BotAllianceCreate: Failed to create new alliance using core function.");
+        return false;
+    }
+    AllianceUpdateAllDynamicData($alliance_id);
+
+    Debug("BotAllianceCreate: Successfully created bot alliance '{$name}' [{$tag}] with ID {$alliance_id}.");
+    return $alliance_id;
+}
+
+/**
+ * Adds a bot to an alliance.
+ */
+function AllianceAddMember($alliance_id, $bot_id) {
+    global $db_prefix;
+
+    if (CountAllyMembers($alliance_id) >= 20) {
+        Debug("AllianceAddMember: Alliance {$alliance_id} is full.");
+        return false;
+    }
+
+    if (!BotCheckAllianceRequirements($bot_id, $alliance_id)) {
+        Debug("AllianceAddMember: Bot {$bot_id} does not meet requirements for alliance {$alliance_id}.");
+        return false;
+    }
+
+    $joindate = time();
+    $newcomer_rank = GetAllyRankByName($alliance_id, "Newcomer");
+    dbquery("UPDATE ".$db_prefix."users SET ally_id = $alliance_id, joindate = $joindate, allyrank = " . ($newcomer_rank['rank_id'] ?? 0) . " WHERE player_id = $bot_id");
+
+    // After adding the member, update the alliance's dynamic data.
+    AllianceUpdateAllDynamicData($alliance_id);
+
+    Debug("AllianceAddMember: Added bot {$bot_id} to alliance {$alliance_id}.");
+    return true;
+}
+
+/**
+ * Removes a bot from an alliance and triggers updates.
+ */
+function AllianceRemoveMember($bot_id) {
+    global $db_prefix;
+    $user_data = LoadUser($bot_id);
+    if (!$user_data || $user_data['ally_id'] == 0) return;
+    
+    $alliance_id = $user_data['ally_id'];
+    
+    dbquery("UPDATE ".$db_prefix."users SET ally_id = 0, joindate = 0, allyrank = 0 WHERE player_id = $bot_id");
+
+    // After removing the member, update the alliance's dynamic data.
+    AllianceUpdateAllDynamicData($alliance_id);
+
+    Debug("AllianceRemoveMember: Removed bot {$bot_id} from alliance {$alliance_id}.");
+}
+
+/**
+ * Recalculates and updates the leadership roles based on member stats.
+ */
+function AllianceUpdateRoles($alliance_id) {
+    $alliance_data = LoadAlly($alliance_id);
+    if (!$alliance_data) return;
+    $leader_id = $alliance_data['owner_id'];
+    $members_result = EnumerateAlly($alliance_id, 3, 1, true); 
+    $members = array();
+    while ($row = dbarray($members_result)) {
+        $row['personality'] = BotGetVar('personality', 'unknown', $row['player_id']);
+        $members[] = $row;
+    }
+
+    if (empty($members)) {
+        // If no members, clear the data from the leader's botvars.
+        BotDeleteVar($leader_id, 'alliance_roles_json');
+        return;
+    }
+
+    $leadership_roles = array('leader' => array(), 'co_leaders' => array(), 'war_coordinators' => array());
+
+    // Assign Leader
+    $leader = array_shift($members);
+    $leadership_roles['leader'] = array('id' => $leader['player_id'], 'name' => $leader['oname']);
+    // Ensure the alliance owner is correctly set to the current points leader.
+    if ($alliance_data['owner_id'] != $leader['player_id']) {
+        AllyChangeOwner($alliance_id, $leader['player_id']);
+    }
+
+    // Assign Co-Leaders (next 2).
+    for ($i = 0; $i < 2 && !empty($members); $i++) {
+        $co_leader = array_shift($members);
+        $leadership_roles['co_leaders'][] = array('id' => $co_leader['player_id'], 'name' => $co_leader['oname']);
+    }
+
+    // Assign War Coordinators (top 3 fleeter/raider personalities).
+    foreach ($members as $key => $member) {
+        if (count($leadership_roles['war_coordinators']) < 3) {
+            if ($member['personality'] === 'fleeter' || $member['personality'] === 'raider') {
+                $leadership_roles['war_coordinators'][] = array('id' => $member['player_id'], 'name' => $member['oname']);
+                unset($members[$key]);
+            }
+        } else { break; }
+    }
+
+    $roles_json = json_encode($leadership_roles);
+    // Store the JSON in the LEADER's botvars.
+    BotSetVar($leader_id, 'alliance_roles_json', $roles_json);
+    Debug("AllianceUpdateRoles: Updated roles for alliance {$alliance_id}.");
+}
+
+/**
+ * Calculates and updates dynamic recruitment requirements based on the alliance average.
+ */
+function AllianceUpdateRequirements($alliance_id) {
+    $alliance_data = LoadAlly($alliance_id);
+    if (!$alliance_data) return;
+    $leader_id = $alliance_data['owner_id'];
+    
+    $members_result = EnumerateAlly($alliance_id);
+    $member_count = dbrows($members_result);
+
+    if ($member_count == 0) {
+        $requirements = array('min_overall_rank' => 5000, 'min_skill' => 20);
+    } else {
+        $total_rank = 0;
+        $total_skill = 0;
+        while ($member = dbarray($members_result)) {
+            $user_data = LoadUser($member['player_id']);
+            $total_rank += $user_data['place1'];
+            $total_skill += BotCalculateSkillScore($member['player_id']);
+        }
+        $avg_rank = $total_rank / $member_count;
+        $avg_skill = $total_skill / $member_count;
+        
+        $requirements = array(
+            'min_overall_rank' => floor($avg_rank * 1.1),
+            'min_skill' => floor($avg_skill * 0.9)
+        );
+    }
+
+    $req_json = json_encode($requirements);
+    // Store the JSON in the LEADER's botvars.
+    BotSetVar($leader_id, 'alliance_reqs_json', $req_json);
+    Debug("AllianceUpdateRequirements: Updated requirements for alliance {$alliance_id}.");
+}
+
+/**
+ * Auto-generates and updates the alliance's public description (exttext).
+ */
+function AllianceGenerateDescription($alliance_id) {
+    global $db_prefix;
+    $alliance_data = LoadAlly($alliance_id);
+    if (!$alliance_data) return;
+    $leader_id = $alliance_data['owner_id'];
+
+    // Get dynamic data from the leader's botvars.
+    $roles = json_decode(BotGetVar($leader_id, 'alliance_roles_json', '[]'), true);
+    $reqs = json_decode(BotGetVar($leader_id, 'alliance_reqs_json', '[]'), true);
+
+    $description = "Welcome to " . htmlspecialchars($alliance_data['name']) . " [" . htmlspecialchars($alliance_data['tag']) . "]\n\n";
+    $description .= "--- LEADERSHIP ---\n";
+    if (!empty($roles['leader'])) $description .= "Leader: " . htmlspecialchars($roles['leader']['name']) . "\n";
+    if (!empty($roles['co_leaders'])) $description .= "Co-Leaders: " . implode(', ', array_column($roles['co_leaders'], 'name')) . "\n";
+    if (!empty($roles['war_coordinators'])) $description .= "WarCo: " . implode(', ', array_column($roles['war_coordinators'], 'name')) . "\n";
+    
+    $description .= "\n--- RECRUITMENT ---\n";
+    if (CountAllyMembers($alliance_id) >= 20) {
+        $description .= "STATUS: CLOSED (Full)\n";
+    } else {
+        $description .= "STATUS: OPEN\n";
+        if (!empty($reqs)) {
+            $description .= "Min. Overall Rank: < " . number_format($reqs['min_overall_rank']) . "\n";
+            $description .= "Min. Avg. Skill: > " . $reqs['min_skill'] . "\n";
+        }
+    }
+
+    $escaped_description = mysqli_real_escape_string($GLOBALS['db_connect'], $description);
+    // Update 'exttext' in the main 'ally' table for public viewing[1].
+    dbquery("UPDATE ".$db_prefix."ally SET exttext = '$escaped_description' WHERE ally_id = $alliance_id");
+    Debug("AllianceGenerateDescription: Generated new description for alliance {$alliance_id}.");
+}
+
+function AllianceUpdateAllDynamicData($alliance_id) {
+    AllianceUpdateRoles($alliance_id);
+    AllianceUpdateRequirements($alliance_id);
+    AllianceGenerateDescription($alliance_id);
+}
+
+
+/**
+ * Checks if a bot meets an alliance's recruitment requirements by fetching them
+ * from the alliance leader's botvars.
+ */
+function BotCheckAllianceRequirements($bot_id, $alliance_id) {
+    $bot_data = LoadUser($bot_id);
+    $ally_data = LoadAlly($alliance_id);
+    if (!$bot_data || !$ally_data) return false;
+    
+    $leader_id = $ally_data['owner_id'];
+    $reqs_json = BotGetVar($leader_id, 'alliance_reqs_json', '[]');
+    $reqs = json_decode($reqs_json, true);
+
+    if (empty($reqs)) return true; // No requirements set
+
+    if ($bot_data['place1'] > $reqs['min_overall_rank']) return false;
+    if (BotCalculateSkillScore($bot_id) < $reqs['min_skill']) return false;
+    
+    return true; // All checks passed.
+}
+
+/**
+ * A helper to get a rank by its name, useful for assigning default ranks.
+ */
+function GetAllyRankByName($alliance_id, $rank_name) {
+    $ranks_result = EnumRanks($alliance_id);
+    while($rank = dbarray($ranks_result)) {
+        if ($rank['name'] === $rank_name) {
+            return $rank;
+        }
+    }
+    return null;
+}
+
+function BotGetStructuredSpyReport($target_planet_id) {
+    global $BotID;
+    $var_name = "spy_report_" . $target_planet_id;
+    $report_s = BotGetVar($var_name, null);
+
+    if ($report_s) {
+        $report = unserialize($report_s);
+        BotDeleteVar($BotID, $var_name);
+
+        if (isset($report['time']) && (time() - $report['time']) < 3600) {
+            return $report;
+        }
+    }
+    return null; 
+}
+
+function BotExecuteAttackSequence() {
+    $attack_phase = BotGetVar('attack_phase', 'idle');
+
+    switch ($attack_phase) {
+        case 'idle':
+            $target = BotFindPotentialTarget();
+            if ($target) {
+                BotSetVar('attack_target', serialize($target));
+                BotSetVar('attack_phase', 'scouting');
+                Debug("BotExecuteAttackSequence: Found potential target {$target['oname']}. Moving to 'scouting' phase.");
+                return 5;
+            }
+            return rand(3600, 7200);
+
+        case 'scouting':
+            $target = unserialize(BotGetVar('attack_target', ''));
+            if (empty($target)) { return BotResetAttackState("No target in botvars."); }
+
+            $probes_sent = BotSendEspionageMission($target);
+            if ($probes_sent) {
+                BotSetVar('attack_phase', 'evaluating');
+                $flight_time = BotCalculateFleetTravelTime(array(210 => 1), $target);
+                $wait_time = ($flight_time * 2) + rand(30, 90);
+                Debug("BotExecuteAttackSequence: Probes sent to {$target['oname']}. Moving to 'evaluating' phase. Waiting {$wait_time}s for report.");
+                return $wait_time;
+            }
+            return BotResetAttackState("Failed to send probes.");
+
+        case 'evaluating':
+            $target = unserialize(BotGetVar('attack_target', ''));
+            if (empty($target)) { return BotResetAttackState("No target in botvars."); }
+
+            $spy_data = BotGetStructuredSpyReport($target['planet_id']);
+            if ($spy_data && $spy_data['success']) {
+                $fleet_to_send = BotEvaluateAttackProfitability($spy_data, $target);
+
+                if ($fleet_to_send) {
+                    BotLaunchAttackMission($target, $fleet_to_send);
+                    return BotResetAttackState("Attack launched successfully!", rand(1800, 5400));
+                }
+                return BotResetAttackState("Target was not profitable.");
+            }
+            return BotResetAttackState("Structured spy report not found or was outdated.");
+    }
+    return 3600;
+}
+
+/**
+ * Resets the attack state machine to 'idle'.
+ */
+function BotResetAttackState($reason, $wait_time = 900) {
+    global $BotID;
+    Debug("BotResetAttackState: Resetting. Reason: $reason. Waiting {$wait_time}s.");
+    BotDeleteVar($BotID, 'attack_phase');
+    BotDeleteVar($BotID, 'attack_target');
+    return $wait_time;
+}
+
+// ===== CORE LOGIC & HELPER FUNCTIONS (STILL RELEVANT) =====
+
+/**
+ * Retrieves the structured spy report from botvars.
+ */
+function BotGetStructuredSpyReport($target_planet_id) {
+    global $BotID;
+    $var_name = "spy_report_" . $target_planet_id;
+    $report_s = BotGetVar($var_name, null);
+
+    if ($report_s) {
+        $report = unserialize($report_s);
+        BotDeleteVar($BotID, $var_name);
+        if (isset($report['time']) && (time() - $report['time']) < 3600) {
+            return $report;
+        }
+    }
+    return null;
+}
+
+/**
+ * Evaluates a spy report to determine if an attack is profitable and feasible.
+ * @return array|false The fleet to send if profitable, otherwise false.
+ */
+function BotEvaluateAttackProfitability($spy_data, $target) {
+    $config = GetBotPersonalityConfig();
+    $attack_fleet = BotPlanAttackFleet();
+    if (empty($attack_fleet)) return false;
+
+    $simulation = BotSimulateBattle($attack_fleet, $spy_data['fleet'], $spy_data['defense']);
+    if ($simulation['winner'] !== 'attacker') return false;
+
+    $loot_value = ($spy_data['resources']['m'] + $spy_data['resources']['k']) * 0.5;
+    $debris_value = BotCalculateDebrisValue($simulation['attacker_losses'], $simulation['defender_losses']);
+    $total_gains = $loot_value + $debris_value;
+
+    $fuel_cost = BotCalculateFleetTravelCost($attack_fleet, $target);
+    $fleet_loss_cost = BotCalculateFleetResourceCost($simulation['attacker_losses']);
+    $total_cost = $fuel_cost + $fleet_loss_cost;
+
+    if ($total_cost == 0) return $attack_fleet;
+
+    $profit_ratio = $total_gains / $total_cost;
+    $required_ratio = $config['attack_preferences']['min_profit_ratio'] ?? 2.0;
+
+    if ($profit_ratio >= $required_ratio) {
+        Debug("BotEvaluateAttackProfitability: Target is PROFITABLE. Ratio: " . round($profit_ratio, 2) . ". Sending fleet.");
+        return $attack_fleet;
+    }
+    
+    Debug("BotEvaluateAttackProfitability: Target NOT profitable. Ratio: " . round($profit_ratio, 2) . ".");
+    return false;
+}
+
+/**
+ * A lightweight battle simulator to estimate losses.
+ */
+function BotSimulateBattle($attacker_fleet, $defender_fleet, $defender_defense) {
+    global $initial;
+    $attacker_power = BotCalculateFleetResourceCost($attacker_fleet);
+    $defender_power = BotCalculateFleetResourceCost($defender_fleet) + BotCalculateFleetResourceCost($defender_defense);
+    
+    $result = ['attacker_losses' => [], 'defender_losses' => [], 'winner' => 'defender'];
+    if ($attacker_power > $defender_power * 1.2) {
+        $result['winner'] = 'attacker';
+        $loss_percent = min(1.0, ($defender_power / max(1, $attacker_power)) * 0.8);
+        foreach ($attacker_fleet as $id => $count) { $result['attacker_losses'][$id] = floor($count * $loss_percent); }
+        foreach ($defender_fleet as $id => $count) { $result['defender_losses'][$id] = $count; }
+        foreach ($defender_defense as $id => $count) { $result['defender_losses'][$id] = $count; }
+    } else {
+        foreach ($attacker_fleet as $id => $count) { $result['attacker_losses'][$id] = $count; }
+        $loss_percent = min(1.0, ($attacker_power / max(1, $defender_power)) * 0.8);
+        foreach ($defender_fleet as $id => $count) { $result['defender_losses'][$id] = floor($count * $loss_percent); }
+        foreach ($defender_defense as $id => $count) { $result['defender_losses'][$id] = floor($count * $loss_percent); }
+    }
+    return $result;
+}
+
+/**
+ * Calculates the Deuterium cost for a fleet's journey using the game's core functions.
+ */
+function BotCalculateFleetTravelCost($fleet, $target) {
+    global $BotID, $GlobalUni;
+    $user = LoadUser($BotID);
+    $start_planet = GetPlanet($user['aktplanet']);
+    $dist = FlightDistance($start_planet['g'], $start_planet['s'], $start_planet['p'], $target['galaxy'], $target['system'], $target['planet']);
+    $fleet_speed = FlightSpeed($fleet, $user['r115'], $user['r117'], $user['r118']);
+    $flight_time = FlightTime($dist, $fleet_speed, 10, $GlobalUni['speed']);
+    $fuel_consumption_data = FlightCons($fleet, $dist, $flight_time, $user['r115'], $user['r117'], $user['r118'], $GlobalUni['speed']);
+    return floor($fuel_consumption_data['fleet'] + $fuel_consumption_data['probes']);
+}
+
+/**
+ * Calculates the total resource value (metal + crystal) of a fleet composition.
+ */
+function BotCalculateFleetResourceCost($fleet) {
+    global $initial;
+    $total_cost = 0;
+    foreach ($fleet as $ship_id => $count) {
+        if (isset($initial[$ship_id])) {
+            $total_cost += ($initial[$ship_id][0] + $initial[$ship_id][1]) * $count;
+        }
+    }
+    return $total_cost;
+}
+
+/**
+ * Calculates the value of a potential debris field from predicted losses.
+ */
+function BotCalculateDebrisValue($attacker_losses, $defender_losses) {
+    $attacker_cost = BotCalculateFleetResourceCost($attacker_losses);
+    $defender_cost = BotCalculateFleetResourceCost($defender_losses);
+    return ($attacker_cost + $defender_cost) * 0.70;
+}

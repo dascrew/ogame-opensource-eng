@@ -290,31 +290,44 @@ function handleActionBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, 
 
     switch (trim($block['text'])) {
         case 'BUILD':
-            $sleep = executeBuildAction($config);
+            executeBuildAction($config);
+            $sleep = BotGetNextActionTime(); 
             break;
         case 'RESEARCH':
-            $sleep = executeResearchAction($config);
+            executeResearchAction($config);
+            $sleep = BotGetNextActionTime();
             break;
         case 'BUILD_FLEET':
-            $sleep = BotBuildFleetAction($queue['params']);
+            BotBuildFleetAction($queue['params']);
+            $sleep = BotGetNextActionTime();
             break;
         case 'BUILD_WAIT':
             $buildingID = BotGetLastBuilt();
             $sleep = GetBuildingTime($BotID, $buildingID); 
-            AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
             break;
-            
+        case 'ATTACK':
+            $sleep = BotExecuteAttackSequence();
+            break;
         default:
-            $sleep = handleCustomAction($block['text']);
+            handleCustomAction($block['text']);
+            $sleep = BotGetNextActionTime();
             break;
     }
 
-    if ($sleep >= 0 && !empty($childs)) {
-        AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
+    if ($sleep > 0) {
+        if (trim($block['text']) === 'ATTACK') {
+            // For the attack sequence, re-queue the SAME block to continue the state machine.
+            AddBotQueue($BotID, $strat_id, $block['key'], $BotNow, $sleep);
+        } else if (!empty($childs)) {
+            AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
+        }
+    } else if (!empty($childs)) {
+        AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, BotGetNextActionTime());
     }
 
     RemoveQueue($queue['task_id']);
 }
+
 
 // Block Interpreter (depends on block handlers)
 function ExecuteBlock($queue, $block, $childs)
