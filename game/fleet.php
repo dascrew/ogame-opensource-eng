@@ -220,7 +220,7 @@ function FleetSpeed ( $id, $combustion, $impulse, $hyper)
             else return $baseSpeed * (1 + 0.1 * $combustion);
         case GID_F_BOMBER:
             if ($hyper >= 8) return ($baseSpeed + 1000) * (1 + 0.3 * $hyper);
-            else return $baseSpeed * (1 + 0.2 * $impulse);            
+            else return $baseSpeed * (1 + 0.2 * $impulse);
         case GID_F_LC:
         case GID_F_LF:
         case GID_F_RECYCLER:
@@ -312,6 +312,34 @@ function DispatchFleet ($fleet, $origin, $target, $order, $seconds, $m, $k ,$d, 
 
     // Add the task to the global event queue.
     AddQueue ( $origin['owner_id'], "Fleet", $fleet_id, 0, 0, $now, $seconds, $prio );
+    if ($mission == FTYP_ATTACK && IsBot($target_planet['owner_id'])) {
+        $target_user = LoadUser($target_planet['owner_id']);
+        if ($target_user['ally_id'] > 0) {
+            $alliance_data = LoadAlly($target_user['ally_id']);
+            $leader_id = $alliance_data['owner_id'];
+
+            // Get attacking fleet details.
+            $attacking_fleet_obj = LoadFleet($fleet_id);
+
+            $defense_request = array(
+                'request_id'        => 'def-' . time(),
+                'target_bot_id'     => $target_planet['owner_id'],
+                'target_planet_id'  => $target_planet['id'],
+                'attacker_id'       => $attacking_fleet_obj['owner_id'],
+                'attacking_fleet'   => $fleet, // The fleet composition array
+                'arrival_time'      => $attacking_fleet_obj['end_time']
+            );
+
+            // Store the request in the alliance leader's botvars.
+            // We store it as a list, as there could be multiple simultaneous attacks on the alliance.
+            $requests_s = BotGetVar($leader_id, 'defense_requests', '[]');
+            $requests = json_decode($requests_s, true);
+            $requests[] = $defense_request;
+            BotSetVar($leader_id, 'defense_requests', json_encode($requests));
+
+            Debug("DispatchFleet: Created defense request for bot {$target_planet['owner_id']} in alliance {$target_user['ally_id']}.");
+        }
+    }
     return $fleet_id;
 }
 

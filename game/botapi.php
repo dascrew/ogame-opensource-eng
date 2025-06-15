@@ -1756,3 +1756,109 @@ function BotCalculateDebrisValue($attacker_losses, $defender_losses) {
     $defender_cost = BotCalculateFleetResourceCost($defender_losses);
     return ($attacker_cost + $defender_cost) * 0.70;
 }
+
+function BotCreateCoordinatedAttack() {
+    global $BotID;
+
+    // Check if this bot is already part of an attacking ACS.
+    $unions = EnumUnion($BotID);
+    foreach($unions as $union) {
+        $fleet = LoadFleet($union['fleet_id']);
+        if ($fleet['owner_id'] === $BotID) {
+            Debug("BotCreateCoordinatedAttack: Bot is already leading an active ACS. Waiting.");
+            return 1800;
+        }
+    }
+
+    $target = BotFindPotentialTarget();
+    if (!$target) {
+        Debug("BotCreateCoordinatedAttack: Could not find a suitable target.");
+        return rand(3600, 7200);
+    }
+    
+    $fleet_to_send = BotPlanAttackFleet();
+    if (!$fleet_to_send) {
+        Debug("BotCreateCoordinatedAttack: Cannot form a fleet for the initial attack.");
+        return rand(1800, 3600);
+    }
+
+    $user = LoadUser($BotID);
+    $start_planet = GetPlanet($user['aktplanet']);
+    $lead_fleet_id = DispatchFleet($fleet_to_send, $start_planet, $target, FTYP_ATTACK, 0, 0, 0, 0, 0, time());
+
+    if (!$lead_fleet_id) {
+        Debug("BotCreateCoordinatedAttack: Failed to dispatch the lead fleet.");
+        return 900;
+    }
+    Debug("BotCreateCoordinatedAttack: Dispatched lead fleet ID: $lead_fleet_id");
+    $union_name = "KV-" . rand(100, 999);
+    $union_id = CreateUnion($lead_fleet_id, $union_name);
+
+    if ($union_id > 0) {
+        Debug("BotCreateCoordinatedAttack: Successfully created ACS Union ID: $union_id with fleet $lead_fleet_id.");
+        // Invite other alliance members.
+        BotInviteAllianceToACS($union_id);
+    } else {
+        Debug("BotCreateCoordinatedAttack: Failed to create ACS union for fleet $lead_fleet_id.");
+        RecallFleet($lead_fleet_id);
+    }
+
+    return rand(3600, 7200);
+}
+
+/**
+ * Checks for open ACS invitations and joins one if it's a good target.
+ */
+function BotCheckAndJoinCoordinatedAttack() {
+    global $BotID;
+    $user = LoadUser($BotID);
+    $unions = EnumUnion($BotID);
+    if (empty($unions)) {
+        Debug("BotCheckAndJoinCoordinatedAttack: No ACS invitations found.");
+        return rand(600, 1800);
+    }
+
+    foreach ($unions as $union) {
+        $head_fleet = LoadFleet($union['fleet_id']);
+        $target_planet = GetPlanet($head_fleet['target_planet']);
+
+        if (!BotAssessTargetRisk($target_planet)) { 
+            Debug("BotCheckAndJoinCoordinatedAttack: Target {$target_planet['name']} for Union ID {$union['union_id']} is too risky.");
+            continue; 
+        }
+
+        // Plan a fleet to send.
+        $fleet_to_send = BotPlanAttackFleet();
+        if (!$fleet_to_send) {
+            Debug("BotCheckAndJoinCoordinatedAttack: Cannot form a fleet to join ACS.");
+            continue;
+        }
+
+        // Dispatch the fleet with the ACS_ATTACK mission type.
+        $start_planet = GetPlanet($user['aktplanet']);
+        $fleet_id = DispatchFleet($fleet_to_send, $start_planet, $target_planet, FTYP_ACS_ATTACK, 0, 0, 0, 0, 0, time(), $union['union_id']);
+
+        if ($fleet_id) {
+            Debug("BotCheckAndJoinCoordinatedAttack: Successfully joined ACS Union ID {$union['union_id']} with fleet ID {$fleet_id}.");
+            return rand(1800, 3600); 
+        }
+    }
+    
+    return rand(600, 1800);
+}
+
+/**
+ * Invites all other bots in the alliance to the newly created ACS.
+ */
+function BotInviteAllianceToACS($union_id) {
+    global $db_prefix, $BotID;
+    $user = LoadUser($BotID);
+    if ($user['ally_id'] == 0) return;
+    $members_result = EnumerateAlly($user['ally_id']);
+    while ($member = dbarray($members_result)) {
+        if ($member['player_id'] != $BotID && IsBot($member['player_id'])) {
+            AddUnionMember($union_id, $member['oname']);
+            Debug("BotInviteAllianceToACS: Invited bot {$member['oname']} to Union ID {$union_id}.");
+        }
+    }
+}

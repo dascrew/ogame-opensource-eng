@@ -287,46 +287,58 @@ function handleActionBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, 
     $config = $PERSONALITIES[$personality] ?? [];
 
     $sleep = 0;
+    $is_stateful_action = false;
 
     switch (trim($block['text'])) {
         case 'BUILD':
             executeBuildAction($config);
-            $sleep = BotGetNextActionTime(); 
             break;
         case 'RESEARCH':
             executeResearchAction($config);
-            $sleep = BotGetNextActionTime();
             break;
         case 'BUILD_FLEET':
             BotBuildFleetAction($queue['params']);
-            $sleep = BotGetNextActionTime();
             break;
         case 'BUILD_WAIT':
             $buildingID = BotGetLastBuilt();
-            $sleep = GetBuildingTime($BotID, $buildingID); 
+            $sleep = GetBuildingTime($BotID, $buildingID);
+            $is_stateful_action = true;
             break;
         case 'ATTACK':
-            $sleep = BotExecuteAttackSequence();
+            $is_stateful_action = true;
+            $sleep = BotExecuteAttackSequence(); 
+            break;
+        case 'CREATE_ATTACK':
+            $is_stateful_action = true;
+            $sleep = BotCreateCoordinatedAttack();
+            break;
+        case 'JOIN_ATTACK':
+            $is_stateful_action = true;
+            $sleep = BotCheckAndJoinCoordinatedAttack();
             break;
         default:
             handleCustomAction($block['text']);
-            $sleep = BotGetNextActionTime();
             break;
     }
 
+    if (!$is_stateful_action) {
+        $sleep = BotGetNextActionTime();
+    }
+
     if ($sleep > 0) {
-        if (trim($block['text']) === 'ATTACK') {
-            // For the attack sequence, re-queue the SAME block to continue the state machine.
+        if (in_array(trim($block['text']), ['ATTACK', 'CREATE_COORDINATED_ATTACK', 'JOIN_COORDINATED_ATTACK'])) {
             AddBotQueue($BotID, $strat_id, $block['key'], $BotNow, $sleep);
         } else if (!empty($childs)) {
             AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
         }
     } else if (!empty($childs)) {
+        // If an action was instant, move to the next block with a standard delay.
         AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, BotGetNextActionTime());
     }
 
     RemoveQueue($queue['task_id']);
 }
+
 
 
 // Block Interpreter (depends on block handlers)
