@@ -1770,18 +1770,31 @@ function BotCreateCoordinatedAttack() {
         }
     }
 
+    // Step 1: Find a target and ensure we have intelligence on it
     $target = BotFindPotentialTarget();
     if (!$target) {
         Debug("BotCreateCoordinatedAttack: Could not find a suitable target.");
         return rand(3600, 7200);
     }
-    
-    $fleet_to_send = BotPlanAttackFleet();
+
+    // Step 2: Check if we have a recent spy report for this target
+    $spy_data = BotGetStructuredSpyReport($target['planet_id']);
+    if (!$spy_data || !$spy_data['success']) {
+        // No spy report available, need to scout first using the attack sequence
+        Debug("BotCreateCoordinatedAttack: No spy report available. Initiating scouting sequence.");
+        BotSetVar('attack_target', serialize($target));
+        BotSetVar('attack_phase', 'scouting');
+        return BotExecuteAttackSequence(); // Use the existing scouting logic
+    }
+
+    // Step 3: Evaluate profitability using the spy report
+    $fleet_to_send = BotEvaluateAttackProfitability($spy_data, $target);
     if (!$fleet_to_send) {
-        Debug("BotCreateCoordinatedAttack: Cannot form a fleet for the initial attack.");
+        Debug("BotCreateCoordinatedAttack: Target not profitable for coordinated attack.");
         return rand(1800, 3600);
     }
 
+    // Step 4: Dispatch the lead fleet
     $user = LoadUser($BotID);
     $start_planet = GetPlanet($user['aktplanet']);
     $lead_fleet_id = DispatchFleet($fleet_to_send, $start_planet, $target, FTYP_ATTACK, 0, 0, 0, 0, 0, time());
@@ -1790,20 +1803,57 @@ function BotCreateCoordinatedAttack() {
         Debug("BotCreateCoordinatedAttack: Failed to dispatch the lead fleet.");
         return 900;
     }
-    Debug("BotCreateCoordinatedAttack: Dispatched lead fleet ID: $lead_fleet_id");
+
+    // Step 5: Create the ACS union
     $union_name = "KV-" . rand(100, 999);
     $union_id = CreateUnion($lead_fleet_id, $union_name);
 
     if ($union_id > 0) {
-        Debug("BotCreateCoordinatedAttack: Successfully created ACS Union ID: $union_id with fleet $lead_fleet_id.");
-        // Invite other alliance members.
+        // Step 6: Create attack plan with SHARED spy report
+        $lead_fleet = LoadFleet($lead_fleet_id);
+        $attack_plan = array(
+            'plan_id'           => 'acs-' . $union_id,
+            'union_id'          => $union_id,
+            'target_info'       => $target,
+            'arrival_time'      => $lead_fleet['end_time'],
+            'shared_spy_report' => $spy_data  // SHARE the spy report with the plan
+        );
+        
+        // Store in alliance leader's botvars
+        $alliance_data = LoadAlly($user['ally_id']);
+        if ($alliance_data) {
+            BotSetVar($alliance_data['owner_id'], 'coord_attack_plan', json_encode($attack_plan));
+            Debug("BotCreateCoordinatedAttack: Stored attack plan with shared spy report.");
+        }
+
         BotInviteAllianceToACS($union_id);
+        
+        // Clear attack state since we've created the coordinated attack
+        BotDeleteVar($BotID, 'attack_phase');
+        BotDeleteVar($BotID, 'attack_target');
     } else {
-        Debug("BotCreateCoordinatedAttack: Failed to create ACS union for fleet $lead_fleet_id.");
         RecallFleet($lead_fleet_id);
     }
 
     return rand(3600, 7200);
+}
+
+function BotAssessTargetRisk($target_planet) {
+    $target_user = LoadUser($target_planet['owner_id']);
+    $bot_user = LoadUser($GLOBALS['BotID']);
+    
+    // Don't attack alliance members
+    if ($target_user['ally_id'] == $bot_user['ally_id'] && $bot_user['ally_id'] > 0) {
+        return false;
+    }
+    
+    // Don't attack targets that are too strong
+    $bot_points = BotGetVar('total_points', 1000);
+    if ($target_user['score1'] > $bot_points * 2) {
+        return false;
+    }
+    
+    return true;
 }
 
 /**
@@ -1812,6 +1862,43 @@ function BotCreateCoordinatedAttack() {
 function BotCheckAndJoinCoordinatedAttack() {
     global $BotID;
     $user = LoadUser($BotID);
+    
+    // First check for coordinated attack plans with shared intelligence
+    $alliance_data = LoadAlly($user['ally_id']);
+    if ($alliance_data) {
+        $plan_s = BotGetVar($alliance_data['owner_id'], 'coord_attack_plan', '{}');
+        $plan = json_decode($plan_s, true);
+        
+        // Check if we have a valid plan with shared spy report
+        if (!empty($plan) && isset($plan['shared_spy_report']) && $plan['arrival_time'] >= time()) {
+            // Check if we're invited to this specific ACS
+            $unions = EnumUnion($BotID);
+            foreach ($unions as $union) {
+                if ($union['union_id'] == $plan['union_id']) {
+                    // Use the shared spy report for evaluation
+                    $shared_spy_report = $plan['shared_spy_report'];
+                    $target_info = $plan['target_info'];
+                    
+                    Debug("BotCheckAndJoinCoordinatedAttack: Using shared spy report for target {$target_info['oname']}.");
+                    
+                    // Evaluate using shared intelligence
+                    $fleet_to_send = BotEvaluateAttackProfitability($shared_spy_report, $target_info);
+                    if ($fleet_to_send) {
+                        $start_planet = GetPlanet($user['aktplanet']);
+                        $fleet_id = DispatchFleet($fleet_to_send, $start_planet, $target_info, FTYP_ACS_ATTACK, 0, 0, 0, 0, 0, time(), $plan['union_id']);
+
+                        if ($fleet_id) {
+                            Debug("BotCheckAndJoinCoordinatedAttack: Joined coordinated attack using shared intelligence.");
+                            return rand(1800, 3600);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Fall back to regular ACS invitations without shared intelligence
     $unions = EnumUnion($BotID);
     if (empty($unions)) {
         Debug("BotCheckAndJoinCoordinatedAttack: No ACS invitations found.");
@@ -1823,23 +1910,19 @@ function BotCheckAndJoinCoordinatedAttack() {
         $target_planet = GetPlanet($head_fleet['target_planet']);
 
         if (!BotAssessTargetRisk($target_planet)) { 
-            Debug("BotCheckAndJoinCoordinatedAttack: Target {$target_planet['name']} for Union ID {$union['union_id']} is too risky.");
             continue; 
         }
 
-        // Plan a fleet to send.
         $fleet_to_send = BotPlanAttackFleet();
         if (!$fleet_to_send) {
-            Debug("BotCheckAndJoinCoordinatedAttack: Cannot form a fleet to join ACS.");
             continue;
         }
 
-        // Dispatch the fleet with the ACS_ATTACK mission type.
         $start_planet = GetPlanet($user['aktplanet']);
         $fleet_id = DispatchFleet($fleet_to_send, $start_planet, $target_planet, FTYP_ACS_ATTACK, 0, 0, 0, 0, 0, time(), $union['union_id']);
 
         if ($fleet_id) {
-            Debug("BotCheckAndJoinCoordinatedAttack: Successfully joined ACS Union ID {$union['union_id']} with fleet ID {$fleet_id}.");
+            Debug("BotCheckAndJoinCoordinatedAttack: Joined regular ACS without shared intel.");
             return rand(1800, 3600); 
         }
     }
