@@ -1,5 +1,7 @@
 <?php
 
+require_once "id.php";
+
 function BotDetectFleetLoss($loss_data, $personality, $total_points) {
     $ships_lost = $loss_data['ships_lost'] ?? 0;
     $fleet_value = $loss_data['fleet_value'] ?? 0;
@@ -291,9 +293,9 @@ function ExtractResourceLossData($cm, $ck, $cd) {
 }
 
 function BotCalculateTotalFleetSize() {
-    $ship_types = array(202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215);
+    $ships_no_sat = GetFleetIds(false);
     $total = 0;
-    foreach ($ship_types as $ship_id) {
+    foreach ($ships_no_sat as $ship_id) {
         $total += BotGetFleetCount($ship_id);
     }
     return $total;
