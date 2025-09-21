@@ -283,76 +283,13 @@ function BotInitializeSkills($personality = null) {
     Debug("BotInitializeSkills: Initialized skills with personality {$personality}");
 }
 
-/**
- * Enhanced building choice function with skill integration
- * Uses existing function patterns
- *
- * @param array $config Personality configuration
- * @return int|false Building ID or false
- */
-function GetSkillModifiedBuildingChoice($config) {
-    // Get original personality weights
-    $weights = $config['building_weights'] ?? array();
-    
-    // Apply skill modifications
-    $modified_weights = BotModifyDecisionWeights($weights, 'building_management');
-    
-    // Use existing GetWeightedBuildingChoice logic with modified weights
-    $available_buildings = array();
-    $total_weight = 0;
-    
-    foreach ($modified_weights as $building_id => $weight) {
-        $current_level = BotGetBuild($building_id);
-        $cap = $config['building_caps'][$building_id] ?? 999;
-        
-        if ($current_level < $cap && BotCanBuild($building_id)) {
-            $cap_factor = 1.0 - ($current_level / $cap);
-            $adjusted_weight = $weight * $cap_factor;
-            
-            $available_buildings[$building_id] = $adjusted_weight;
-            $total_weight += $adjusted_weight;
-        }
-    }
-    
-    if ($total_weight == 0) {
-        Debug("GetSkillModifiedBuildingChoice: No buildable buildings available");
-        return false;
-    }
-    
-    // Weighted random selection
-    $random = rand(1, $total_weight * 100) / 100;
-    $current_weight = 0;
-    
-    foreach ($available_buildings as $building_id => $weight) {
-        $current_weight += $weight;
-        if ($random <= $current_weight) {
-            Debug("GetSkillModifiedBuildingChoice: Selected building $building_id (weight: $weight)");
-            return $building_id;
-        }
-    }
-    
-    $building_id = array_keys($available_buildings)[0];
-    Debug("GetSkillModifiedBuildingChoice: Fallback to building $building_id");
-    return $building_id;
-}
-
-/**
- * Enhanced research choice function with skill integration
- *
- * @param array $config Personality configuration
- * @return int|false Research ID or false
- */
 function GetSkillModifiedResearchChoice($config) {
-    // Get original personality weights
-    $weights = $config['research_weights'] ?? array();
-    
-    // Apply skill modifications
-    $modified_weights = BotModifyDecisionWeights($weights, 'research_planning');
+    $weights = $config['weights']['research_priority'];
     
     $available_research = array();
     $total_weight = 0;
     
-    foreach ($modified_weights as $research_id => $weight) {
+    foreach ($weights as $research_id => $weight) {
         if (BotCanResearch($research_id)) {
             $available_research[$research_id] = $weight;
             $total_weight += $weight;
@@ -364,20 +301,19 @@ function GetSkillModifiedResearchChoice($config) {
         return false;
     }
     
+    // Weighted random selection using base personality weights
     $random = rand(1, $total_weight * 100) / 100;
     $current_weight = 0;
     
     foreach ($available_research as $research_id => $weight) {
         $current_weight += $weight;
         if ($random <= $current_weight) {
-            Debug("GetSkillModifiedResearchChoice: Selected research $research_id (weight: $weight)");
+            Debug("GetSkillModifiedResearchChoice: Selected research $research_id with weight $weight");
             return $research_id;
         }
     }
     
-    $research_id = array_keys($available_research)[0];
-    Debug("GetSkillModifiedResearchChoice: Fallback to research $research_id");
-    return $research_id;
+    return false;
 }
 
 function BotIncreaseSkillOverTime($skill_type, $increment = 0.1) {
