@@ -205,3 +205,25 @@ function BotGetBuildingEnergyCost($buildingId, $current_level)
 
     return $increase;
 }
+
+function BotCanAffordEnergy($mine_id)
+{
+    global $BotID, $BotNow;
+    
+    if (!in_array($mine_id, [GID_B_METAL_MINE, GID_B_CRYS_MINE, GID_B_DEUT_SYNTH])) {
+        return false;
+    }
+    
+    $user = LoadUser($BotID);
+    $aktplanet = GetPlanet($user['aktplanet']);
+    ProdResources($aktplanet, $aktplanet['lastpeek'], $BotNow);
+    
+    $current_level = $aktplanet['b'.$mine_id];
+    $current_energy = $aktplanet['e'];
+    
+    // Get energy increase for next level
+    $energy_increase = BotGetBuildingEnergyCost($mine_id, $current_level);
+    
+    // Simple check: would energy remain non-negative?
+    return ($current_energy - $energy_increase) >= 0;
+}

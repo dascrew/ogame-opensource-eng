@@ -11,6 +11,7 @@ require_once "bot_utils.php";
 require_once "bot_vars.php";
 require_once "bot_lifecycle.php";
 require_once "bot_planet.php";
+require_once "id.php";
 
 // Global bot variables.
 $BotID = 0;        // ordinal number of the current bot
@@ -148,6 +149,14 @@ function evaluateCondition($text, $personality, $PERSONALITIES) {
     $config = $PERSONALITIES[$personality] ?? [];
     
     switch ($text) {
+        case 'BASIC_DEUT':
+            return BotGetBuild(GID_B_DEUT_SYNTH) < 1 && BotCanAffordEnergy(GID_B_DEUT_SYNTH && BotCanBuild(GID_B_DEUT_SYNTH));
+        case 'BASIC_METAL':
+            return BotGetBuild(GID_B_METAL_MINE) < 4 && BotCanAffordEnergy(GID_B_METAL_MINE && BotCanBuild(GID_B_METAL_MINE));
+        case 'BASIC_CRYSTAL':
+            return BotGetBuild(GID_B_CRYS_MINE) < 2 && BotCanAffordEnergy(GID_B_CRYS_MINE && BotCanBuild(GID_B_CRYS_MINE));
+        case 'BASIC_ENERGY':
+            return BotGetBuild(GID_B_SOLAR) < 4 && BotCanBuild(GID_B_SOLAR);
         case 'CAN_BUILD':
             return GetWeightedBuildingChoice($config);
         case 'CAN_RESEARCH':
@@ -260,6 +269,10 @@ function handleActionBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, 
         case 'BUILD_WAIT':
             $buildingID = BotGetLastBuilt();
             $sleep = GetBuildingTime($BotID, $buildingID);
+            $is_stateful_action = true;
+            break;
+        case 'RANDOM_WAIT':
+            $sleep = rand(6, 30);
             $is_stateful_action = true;
             break;
         case 'ATTACK':
