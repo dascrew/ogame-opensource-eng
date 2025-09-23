@@ -31,6 +31,20 @@ This will:
 - Send a single probe to a randomly selected target
 - Return appropriate wait times based on success/failure
 
+### Advanced Usage with Parameters
+
+The SCOUT action accepts optional parameters to customize its behavior:
+
+**Parameter 0: Range** (Integer, default: 100)
+- Specifies the number of systems to scan in each direction
+- Minimum: 1 system, Maximum: 500 systems  
+- Example: `SCOUT` with params `[50]` scans 50 systems each way
+
+**Future Parameters** (Reserved for expansion)
+- Additional filtering options
+- Target prioritization settings
+- Custom inactive thresholds
+
 ### How It Works
 
 1. **Range Calculation**: Scans 100 systems in each direction from the bot's active planet
@@ -102,16 +116,36 @@ Fuel consumption is calculated based on distance with a base consumption of 1 de
 
 ## Example Bot Strategy
 
+### Basic Continuous Scouting
 ```json
 {
   "nodeDataArray": [
     {"key": 1, "category": "Start", "text": "Start"},
     {"key": 2, "category": "Action", "text": "SCOUT"},
-    {"key": 3, "category": "End", "text": "End"}
+    {"key": 3, "category": "Action", "text": "SCOUT"}
   ],
   "linkDataArray": [
     {"from": 1, "to": 2},
-    {"from": 2, "to": 3}
+    {"from": 2, "to": 3},
+    {"from": 3, "to": 2}
+  ]
+}
+```
+
+### Advanced Scouting with Range Control
+The SCOUT action can accept parameters to customize behavior:
+
+- **Parameter 0**: Range in systems (default: 100)
+
+Example with custom range of 50 systems:
+```json
+{
+  "nodeDataArray": [
+    {"key": 1, "category": "Start", "text": "Start"},
+    {"key": 2, "category": "Action", "text": "SCOUT", "params": [50]}
+  ],
+  "linkDataArray": [
+    {"from": 1, "to": 2}
   ]
 }
 ```
@@ -131,9 +165,13 @@ The system includes comprehensive error handling:
 - Appropriate wait times prevent excessive system load
 - Failed missions trigger longer wait periods
 
-## Security Features
+## Safety Features
 
 - Respects newbie and strong player protections
 - Only targets inactive players by default
 - Validates all coordinates and player data
 - Prevents sending to invalid or protected targets
+- **Self-exclusion**: Bots will never target their own planets
+- **Range limits**: Range parameter is constrained between 1-500 systems
+- **Target limits**: Maximum of 100 targets per scan to prevent system overload
+- **Resource validation**: Checks probe availability and deuterium before sending

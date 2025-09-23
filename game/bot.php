@@ -300,7 +300,19 @@ function handleActionBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, 
             AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
             break;
         case 'SCOUT':
-            $sleep = BotScout();
+            // Parse optional parameters from queue params if available
+            $scout_range = 100; // default range
+            $scout_filters = array(); // default filters
+            
+            if (!empty($queue['params'])) {
+                $params = $queue['params'];
+                if (is_array($params)) {
+                    $scout_range = isset($params[0]) ? intval($params[0]) : 100;
+                    // Additional filter parameters could be added here
+                }
+            }
+            
+            $sleep = BotScout($scout_range, $scout_filters);
             break;
             
         default:

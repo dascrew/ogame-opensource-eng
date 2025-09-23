@@ -513,6 +513,9 @@ function BotFindScoutTargets($origin, $range, $filters)
 {
     global $GlobalUni;
     
+    // Validate and constrain range
+    $range = max(1, min(500, intval($range))); // Range between 1 and 500 systems
+    
     $targets = array();
     $current_galaxy = $origin['g'];
     $current_system = $origin['s'];
@@ -525,6 +528,11 @@ function BotFindScoutTargets($origin, $range, $filters)
     for ($system = $min_system; $system <= $max_system; $system++) {
         $system_targets = BotScanSystemForTargets($current_galaxy, $system, $filters);
         $targets = array_merge($targets, $system_targets);
+        
+        // Limit total targets to prevent excessive processing
+        if (count($targets) > 100) {
+            break;
+        }
     }
     
     return $targets;
@@ -554,6 +562,8 @@ function BotScanSystemForTargets($galaxy, $system, $filters)
 // Check if a player/planet is a valid scout target based on filters
 function BotIsValidScoutTarget($user, $planet, $filters)
 {
+    global $BotID;
+    
     // Default filters if none provided
     $default_filters = array(
         'avoid_newbie' => true,
@@ -563,6 +573,11 @@ function BotIsValidScoutTarget($user, $planet, $filters)
     );
     
     $filters = array_merge($default_filters, $filters);
+    
+    // Skip own planets
+    if ($user['player_id'] == $BotID) {
+        return false;
+    }
     
     // Skip newbie players if filter is set
     if ($filters['avoid_newbie'] && IsPlayerNewbie($user['player_id'])) {
