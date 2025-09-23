@@ -204,7 +204,7 @@ function CreateUser ( $name, $pass, $email, $bot=false)
     // Replaced the fragile AddDBRow with a specific, explicit, and robust INSERT query.
     // This gives full control and bypasses the problematic helper function.
     
-    // NOTE: This query lists all 88 columns to match your schema precisely.
+    // NOTE: This query lists all columns explicitly to match your schema precisely.
     $query = "INSERT INTO `{$db_prefix}users` (
         `regdate`, `ally_id`, `joindate`, `allyrank`, `session`, `private_session`, `name`, `oname`, `name_changed`, 
         `name_until`, `password`, `temp_pass`, `pemail`, `email`, `email_changed`, `email_until`, `disable`, 
