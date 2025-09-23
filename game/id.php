@@ -107,4 +107,13 @@ $fleetmap_revnosat = array ( 215, 214, 213, 211, 210, 209, 208, 207, 206, 205, 2
 $defmap = array ( 401, 402, 403, 404, 405, 406, 407, 408, 502, 503 );
 $defmap_norak = array ( 401, 402, 403, 404, 405, 406, 407, 408 );           // without missiles
 
-?>
+function GetBuildingIds() { global $buildmap; return $buildmap; }
+function GetResearchIds() { global $resmap; return $resmap; }
+function GetFleetIds($include_satellites = true) {
+    global $fleetmap, $fleetmap_nosat;
+    return $include_satellites ? $fleetmap : $fleetmap_nosat;
+}
+function GetDefenseIds($include_missiles = true) {
+    global $defmap, $defmap_norak;
+    return $include_missiles ? $defmap : $defmap_norak;
+}

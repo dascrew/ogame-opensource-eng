@@ -220,7 +220,7 @@ function FleetSpeed ( $id, $combustion, $impulse, $hyper)
             else return $baseSpeed * (1 + 0.1 * $combustion);
         case GID_F_BOMBER:
             if ($hyper >= 8) return ($baseSpeed + 1000) * (1 + 0.3 * $hyper);
-            else return $baseSpeed * (1 + 0.2 * $impulse);            
+            else return $baseSpeed * (1 + 0.2 * $impulse);
         case GID_F_LC:
         case GID_F_LF:
         case GID_F_RECYCLER:
@@ -312,6 +312,34 @@ function DispatchFleet ($fleet, $origin, $target, $order, $seconds, $m, $k ,$d, 
 
     // Add the task to the global event queue.
     AddQueue ( $origin['owner_id'], "Fleet", $fleet_id, 0, 0, $now, $seconds, $prio );
+    if ($order == FTYP_ATTACK && IsBot($target_planet['owner_id'])) {
+        $target_user = LoadUser($target_planet['owner_id']);
+        if ($target_user['ally_id'] > 0) {
+            $alliance_data = LoadAlly($target_user['ally_id']);
+            $leader_id = $alliance_data['owner_id'];
+
+            // Get attacking fleet details.
+            $attacking_fleet_obj = LoadFleet($fleet_id);
+
+            $defense_request = array(
+                'request_id'        => 'def-' . time(),
+                'target_bot_id'     => $target_planet['owner_id'],
+                'target_planet_id'  => $target_planet['id'],
+                'attacker_id'       => $attacking_fleet_obj['owner_id'],
+                'attacking_fleet'   => $fleet, // The fleet composition array
+                'arrival_time'      => $attacking_fleet_obj['end_time']
+            );
+
+            // Store the request in the alliance leader's botvars.
+            // We store it as a list, as there could be multiple simultaneous attacks on the alliance.
+            $requests_s = BotGetVar($leader_id, 'defense_requests', '[]');
+            $requests = json_decode($requests_s, true);
+            $requests[] = $defense_request;
+            BotSetVar($leader_id, 'defense_requests', json_encode($requests));
+
+            Debug("DispatchFleet: Created defense request for bot {$target_planet['owner_id']} in alliance {$target_user['ally_id']}.");
+        }
+    }
     return $fleet_id;
 }
 
@@ -673,6 +701,45 @@ function SpyArrive ($queue, $fleet_obj, $fleet, $origin, $target)
     if ($c < 0) $c = 0;
     if ($c > 1) $c = 1;
     $counter = $c * 100;
+
+    if (IsBot($origin['owner_id'])) {
+        $spy_data_raw = [
+            'success'   => true,
+            'time'      => $now,
+            'target_planet_id' => $target['planet_id'],
+            'resources' => [
+                'm' => $target['m'],
+                'k' => $target['k'],
+                'd' => $target['d'],
+                'e' => $target['emax']
+            ],
+            'fleet' => [],
+            'defense' => [],
+            'buildings' => [],
+            'research' => []
+        ];
+
+        // Gather fleet data if espionage level is sufficient.
+        if ($level > 0) {
+            foreach ($fleetmap as $gid) { $spy_data_raw['fleet'][$gid] = $target["f$gid"]; }
+        }
+        // Gather defense data.
+        if ($level > 1) {
+            foreach ($defmap as $gid) { $spy_data_raw['defense'][$gid] = $target["d$gid"]; }
+        }
+        // Gather building data.
+        if ($level > 3) {
+            foreach ($buildmap as $gid) { $spy_data_raw['buildings'][$gid] = $target["b$gid"]; }
+        }
+        // Gather research data.
+        if ($level > 5) {
+            foreach ($resmap as $gid) { $spy_data_raw['research'][$gid] = $target_user["r$gid"]; }
+        }
+
+        $var_name = "spy_report_" . $target['planet_id'];
+        BotSetVar($origin['owner_id'], $var_name, serialize($spy_data_raw));
+        Debug("SpyArrive: Stored structured spy report for bot {$origin['owner_id']} on target {$target['planet_id']}.");
+    }
 
     $subj = "\n<span class=\"espionagereport\">\n" .
                 va(loca_lang("SPY_SUBJ", $origin_user['lang']), $target['name']) . "\n" .

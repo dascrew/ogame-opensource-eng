@@ -58,6 +58,7 @@ BeginContent ();
           <option value="ressources" <?php if ($type==="ressources") echo "selected"; ?>><?=loca("STAT_BY_POINTS");?></option> 
           <option value="fleet" <?php if ($type==="fleet") echo "selected"; ?>><?=loca("STAT_BY_FLEETS");?></option> 
           <option value="research" <?php if ($type==="research") echo "selected"; ?>><?=loca("STAT_BY_RESEARCH");?></option> 
+          <option value="mine" <?php if ($type==="mine") echo "selected"; ?>>Mines</option>
         </select> 
           
         &nbsp;<?=loca("STAT_ON_PLACE");?>        <select name="start"> 
@@ -130,6 +131,7 @@ if ( $who === 'ally' ) {
 
     if ( $type === "fleet" ) $query = "SELECT * FROM ".$db_prefix."ally WHERE place2 >= $start AND place2 < ".($start+99)." ORDER BY place2;";
     else if ( $type === "research" ) $query = "SELECT * FROM ".$db_prefix."ally WHERE place3 >= $start AND place3 < ".($start+99)." ORDER BY place3;";
+    else if ( $type === "mine" ) $query = "SELECT * FROM ".$db_prefix."ally WHERE place4 >= $start AND place4 < ".($start+99)." ORDER BY place4;";
     else $query = "SELECT * FROM ".$db_prefix."ally WHERE place1 >= $start AND place1 < ".($start+99)." ORDER BY place1;";
 
     $result = dbquery ($query);
@@ -139,6 +141,7 @@ if ( $who === 'ally' ) {
 
         if ( $type === "fleet" ) { $place = $ally['place2']; $diff = $ally['place2'] - $ally['oldplace2']; $score = $ally['score2']; }
         else if ( $type === "research" ) { $place = $ally['place3']; $diff = $ally['place3'] - $ally['oldplace3']; $score = $ally['score3']; }
+        else if ( $type === "mine" ) { $place = $ally['place4']; $diff = $ally['place4'] - $ally['oldplace4']; $score = floor($ally['score4'] / 1000); }
         else { $place = $ally['place1']; $diff = $ally['place1'] - $ally['oldplace1']; $score = floor($ally['score1'] / 1000); }
 
 ?>
@@ -156,9 +159,7 @@ if ( $who === 'ally' ) {
 ?>    </th>
     
     <!--  name -->
-    <th>
-
-<?php
+    <th>... <?php
     if ( $ally['ally_id'] == $GlobalUser['ally_id'] ) echo "      <a href=\"#\" style='color:lime;'>\n";
     else echo "      <a href=\"ainfo.php?allyid=".$ally['ally_id']."\" target='_ally'>      \n";
 ?>
@@ -214,11 +215,13 @@ else {
     if ( $start <= 0 ) {
         if ( $type === "fleet" ) $start = (floor($GlobalUser['place2']/100)*100+1);
         else if ( $type === "research" ) $start = (floor($GlobalUser['place3']/100)*100+1);
+        else if ( $type === "mine" ) $start = (floor($GlobalUser['place4']/100)*100+1);
         else $start = (floor($GlobalUser['place1']/100)*100+1);
     }
 
     if ( $type === "fleet" ) $query = "SELECT * FROM ".$db_prefix."users WHERE place2 >= $start AND place2 < ".($start+99)." ORDER BY place2;";
     else if ( $type === "research" ) $query = "SELECT * FROM ".$db_prefix."users WHERE place3 >= $start AND place3 < ".($start+99)." ORDER BY place3;";
+    else if ( $type === "mine" ) $query = "SELECT * FROM ".$db_prefix."users WHERE place4 >= $start AND place4 < ".($start+99)." ORDER BY place4;";
     else $query = "SELECT * FROM ".$db_prefix."users WHERE place1 >= $start AND place1 < ".($start+99)." ORDER BY place1;";
 
     $result = dbquery ($query);
@@ -228,6 +231,7 @@ else {
 
         if ( $type === "fleet" ) { $place = $user['place2']; $diff = $user['place2'] - $user['oldplace2']; $score = $user['score2']; }
         else if ( $type === "research" ) { $place = $user['place3']; $diff = $user['place3'] - $user['oldplace3']; $score = $user['score3']; }
+        else if ( $type === "mine" ) { $place = $user['place4']; $diff = $user['place4'] - $user['oldplace4']; $score = floor($user['score4'] / 1000); }
         else { $place = $user['place1']; $diff = $user['place1'] - $user['oldplace1']; $score = floor($user['score1'] / 1000); }
 
         echo "  <tr> \n";
@@ -254,7 +258,11 @@ else {
                 $player_color = "87CEEB";
             }
 
-            echo "       <a href=\"index.php?page=galaxy&no_header=1&session=$session&p1=".$home['g']."&p2=".$home['s']."&p3=".$home['p']."\" style='color:".$player_color."' >      \n\n";
+            if ($home && is_array($home)) {
+                echo "       <a href=\"index.php?page=galaxy&no_header=1&session=$session&p1=".$home['g']."&p2=".$home['s']."&p3=".$home['p']."\" style='color:".$player_color."' >      \n\n";
+            } else {
+                echo "       <a href=\"#\" style='color:".$player_color."' >      \n\n";
+            }
             echo $user['oname'] . "</a> \n";
         }
         echo "    </th> \n\n";
@@ -273,13 +281,17 @@ else {
         echo "    <th> \n";
         if ( $user['ally_id'] != 0 && $user['ally_id'] == $GlobalUser['ally_id'] ) {
             $ally = LoadAlly ( $user['ally_id'] );
-            echo " 	  <a href=\"index.php?page=allianzen&session=$session\">\n";
-            echo "        ".$ally['tag']."      </a>\n";
+            if ($ally && is_array($ally)) {
+                echo " 	  <a href=\"index.php?page=allianzen&session=$session\">\n";
+                echo "        ".$ally['tag']."      </a>\n";
+            }
         }
         else if ( $user['ally_id'] ) {
             $ally = LoadAlly ( $user['ally_id'] );
-            echo "   	  <a href='ainfo.php?allyid=".$user['ally_id']."' target='_ally'>\n";
-            echo "        ".$ally['tag']."      </a>\n";
+            if ($ally && is_array($ally)) {
+                echo "   	  <a href='ainfo.php?allyid=".$user['ally_id']."' target='_ally'>\n";
+                echo "        ".$ally['tag']."      </a>\n";
+            }
         }
         else {
             echo "      <a href=\"index.php?page=allianzen&session=$session\"> \n";

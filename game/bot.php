@@ -2,8 +2,16 @@
 
 // Bot Management.
 
-require_once "botapi.php";
 require_once "personality.php";
+require_once "skills.php";
+require_once "bot_fleet.php";
+require_once "bot_alliance.php";
+require_once "bot_target.php";
+require_once "bot_utils.php";
+require_once "bot_vars.php";
+require_once "bot_lifecycle.php";
+require_once "bot_planet.php";
+require_once "id.php";
 
 // Global bot variables.
 $BotID = 0;        // ordinal number of the current bot
@@ -33,11 +41,6 @@ function findChildBlock($children, $type) {
     
     return null;
 }
-
-
-
-// Load user with error checking
-
 
 function GetBuildingTime($playerID, $buildingID) {
     global $aktplanet, $GlobalUni;
@@ -104,31 +107,26 @@ function IsBot ($player_id)
     return ( dbrows ($result) > 0 ) ;
 }
 
-function checkBuildablePriority($config) {
-    if (empty($config['priority_buildings'])) {
-        Debug("No priority buildings in config");
-        return false;
+function executeBuildAction($config) {
+    $building_id = GetWeightedBuildingChoice($config);
+    if ($building_id !== false && BotCanBuild($building_id)) {
+        return BotBuild($building_id);
     }
-
-    foreach ($config['priority_buildings'] as $buildingId) {
-        $current = BotGetBuild($buildingId);
-        $cap = $config['building_caps'][$buildingId] ?? 999;
-        
-        if ($current < $cap && BotCanBuild($buildingId)) {
-            Debug("Priority building $buildingId selected (current: $current, cap: $cap)");
-            return $buildingId;
-        }
-    }
-    
-    Debug("All priority buildings at cap or unavailable");
-    return false;
+    return 0;
 }
 
-function executeBuildAction($config) {
-    foreach ($config['priority_buildings'] ?? [] as $id) {
-        if (BotCanBuild($id)) {
-            return BotBuild($id);
-        }
+function executeResearchAction($config) {
+    $research_id = GetWeightedResearchChoice($config);
+    if ($research_id !== false && BotCanResearch($research_id)) {
+        return BotResearch($research_id);
+    }
+    return 0;
+}
+
+function executeFleetBuildAction($config) {
+    $ship_choice = GetWeightedShipChoice($config);
+    if ($ship_choice !== false) {
+        return BotBuildFleet($ship_choice['ship_id'], $ship_choice['amount']);
     }
     return 0;
 }
@@ -147,55 +145,28 @@ function debugBlockTrace($block) {
     ));
 }
 
-function handleCustomAction($code) {
-    // Allowlist of safe commands
-    $allowedCommands = [
-        'BUILD_FLEET' => function($params) {
-            $shipTypeId = $params[0] ?? -1;
-            $amount = $params[1] ?? 0;
-            return BotBuildFleet($shipTypeId, $amount);
-        }
-    ];
-    
-    // Parse command pattern: COMMAND(param1, param2)
-    if (preg_match('/^(\w+)\s*\(([^)]*)\)$/', $code, $matches)) {
-        $command = strtoupper(trim($matches[1]));
-        $params = array_map('trim', explode(',', $matches[2]));
-        
-        if (isset($allowedCommands[$command])) {
-            Debug("Executing allowed command: $command");
-            return $allowedCommands[$command]($params);
-        }
-    }
-    
-    // Fallback to eval with sanitization
-    $sanitizedCode = preg_replace('/[^a-zA-Z0-9_\(\)\-\+\*\/%\s]/', '', $code);
-    Debug("Executing custom code: $sanitizedCode");
-    
-    $result = @eval("return ($sanitizedCode);");
-    
-    if ($result === false || error_get_last() !== null) {
-        Debug("Custom action error in: $sanitizedCode - " . error_get_last()['message']);
-        return 0;
-    }
-    
-    return (int)$result;
-}
-
 function evaluateCondition($text, $personality, $PERSONALITIES) {
     $config = $PERSONALITIES[$personality] ?? [];
     
     switch ($text) {
+        case 'BASIC_DEUT':
+            return BotGetBuild(GID_B_DEUT_SYNTH) < 1 && BotCanAffordEnergy(GID_B_DEUT_SYNTH && BotCanBuild(GID_B_DEUT_SYNTH));
+        case 'BASIC_METAL':
+            return BotGetBuild(GID_B_METAL_MINE) < 4 && BotCanAffordEnergy(GID_B_METAL_MINE && BotCanBuild(GID_B_METAL_MINE));
+        case 'BASIC_CRYSTAL':
+            return BotGetBuild(GID_B_CRYS_MINE) < 2 && BotCanAffordEnergy(GID_B_CRYS_MINE && BotCanBuild(GID_B_CRYS_MINE));
+        case 'BASIC_ENERGY':
+            return BotGetBuild(GID_B_SOLAR) < 4 && BotCanBuild(GID_B_SOLAR);
         case 'CAN_BUILD':
-            return checkBuildablePriority($config);
+            return GetWeightedBuildingChoice($config);
         case 'CAN_RESEARCH':
-            return checkResearchablePriority($config);
+            return GetWeightedResearchChoice($config);
         case 'BASIC_DONE':
             return BotGetBuild(1) >= 4 && BotGetBuild(2) >= 2 && BotGetBuild(4) >= 4;
         case 'IS_MINER':
             return BotGetVar('personality', 'miner') === 'miner';
         case 'IS_FLEETER':
-            return BotGetVar('personality', 'miner') === 'fleeter';      
+            return BotGetVar('personality', 'miner') === 'fleeter';
         default:
             return @eval("return ($text);");
     }
@@ -283,49 +254,63 @@ function handleActionBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, 
     $config = $PERSONALITIES[$personality] ?? [];
 
     $sleep = 0;
+    $is_stateful_action = false;
 
     switch (trim($block['text'])) {
         case 'BUILD':
-            $sleep = executeBuildAction($config);
+            executeBuildAction($config);
             break;
         case 'RESEARCH':
-            $sleep = executeResearchAction($config);
+            executeResearchAction($config);
             break;
         case 'BUILD_FLEET':
-            $sleep = BotBuildFleetAction($queue['params']);
+            BotBuildFleetAction($queue['params']);
             break;
         case 'BUILD_WAIT':
             $buildingID = BotGetLastBuilt();
-            $sleep = GetBuildingTime($BotID, $buildingID); 
-            AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
+            $sleep = GetBuildingTime($BotID, $buildingID);
+            $is_stateful_action = true;
             break;
-        case 'SCOUT':
-            // Parse optional parameters from queue params if available
-            $scout_range = 100; // default range
-            $scout_filters = array(); // default filters
-            
-            if (!empty($queue['params'])) {
-                $params = $queue['params'];
-                if (is_array($params)) {
-                    $scout_range = isset($params[0]) ? intval($params[0]) : 100;
-                    // Additional filter parameters could be added here
-                }
-            }
-            
-            $sleep = BotScout($scout_range, $scout_filters);
+        case 'RANDOM_WAIT':
+            $sleep = rand(6, 30);
+            $is_stateful_action = true;
             break;
-            
+        case 'ATTACK':
+            $is_stateful_action = true;
+            $sleep = BotExecuteAttackSequence(); 
+            break;
+        case 'CREATE_ATTACK':
+            $is_stateful_action = true;
+            $sleep = BotCreateCoordinatedAttack();
+            break;
+        case 'JOIN_ATTACK':
+            $is_stateful_action = true;
+            $sleep = BotCheckAndJoinCoordinatedAttack();
+            break;
         default:
-            $sleep = handleCustomAction($block['text']);
+            Debug("Unknown action block: " . $block['text']);
             break;
     }
 
-    if ($sleep >= 0 && !empty($childs)) {
-        AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
+    if (!$is_stateful_action) {
+        $sleep = BotGetNextActionTime();
+    }
+
+    if ($sleep > 0) {
+        if (in_array(trim($block['text']), ['ATTACK', 'CREATE_COORDINATED_ATTACK', 'JOIN_COORDINATED_ATTACK'])) {
+            AddBotQueue($BotID, $strat_id, $block['key'], $BotNow, $sleep);
+        } else if (!empty($childs)) {
+            AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
+        }
+    } else if (!empty($childs)) {
+        // If an action was instant, move to the next block with a standard delay.
+        AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, BotGetNextActionTime());
     }
 
     RemoveQueue($queue['task_id']);
 }
+
+
 
 // Block Interpreter (depends on block handlers)
 function ExecuteBlock($queue, $block, $childs)
@@ -339,7 +324,7 @@ function ExecuteBlock($queue, $block, $childs)
     if (shouldTraceBlock()) {
         debugBlockTrace($block);
     }
-    switch ($block['category']) {
+   switch ($category = $block['category'] ?? '') {
         case "Start":
             handleStartBlock($queue, $childs, $BotID, $strat_id, $BotNow);
             break;
@@ -453,11 +438,13 @@ function AddBot ($name)
         if (!isset($PERSONALITIES[$personality]['subtypes'][$subtype])) {
             $subtype = $PERSONALITIES[$personality]['default_subtype'];
         }
-        BotSetVar('personality', $personality);
-        BotSetVar('subtype', $subtype);
+        BotSetVarNew($player_id, 'personality', $personality);
+        BotSetVarNew($player_id, 'subtype', $subtype);
+        BotSetVarNew($player_id, 'sleep_center_hour', rand(0, 23));
+        BotInitializeSkills($personality);
+        AddBotSkillUpdateEvent($player_id);
+        BotInitializeActivityPattern($player_id);
         return true;
     }
     return false;
 }
-
-?>

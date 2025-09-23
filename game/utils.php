@@ -10,14 +10,7 @@ function scriptname () {
 }
 
 function hostname () {
-    if (!empty($_SERVER['HTTPS']))  { // get if request is http or https
-       $encr ="https://";
-    }else{
-       $encr ="http://";
-    }
-    $host = $encr . $_SERVER['HTTP_HOST'] . $_SERVER["SCRIPT_NAME"];
-    $pos = strrpos ( $host, "/game/" );
-    return substr ( $host, 0, $pos+1 );
+    return '/';
 }
 
 function nicenum ($number)
@@ -91,9 +84,8 @@ function mail_utf8($to, $subject = '(No subject)', $message = '', $header = '')
     mail($to, '=?UTF-8?B?'.base64_encode($subject).'?=', $message, $header_ . $header);
 }
 
-function localhost ($ip)
-{
-    return $ip === "127.0.0.1" || $ip === "::1";
+function localhost ($ip) {
+    return true;
 }
 
 // Cut all sorts of injections out of the string.

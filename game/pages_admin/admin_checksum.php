@@ -20,7 +20,6 @@ function Admin_Checksum ()
         'battle_engine.php', 
         'bbcode.php', 
         'bot.php', 
-        'botapi.php', 
         'coupon.php', 
         'db.php', 
         'debug.php', 

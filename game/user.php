@@ -178,7 +178,7 @@ function IsEmailExist ( $email, $name="")
 // Returns the ID of the created user.
 function CreateUser ( $name, $pass, $email, $bot=false)
 {
-    global $db_prefix, $db_secret, $Languages;
+    global $db_prefix, $db_secret, $Languages, $db_connect; // Ensure db_connect is global for mysqli_insert_id
     $origname = $name;
     $name = mb_strtolower ($name, 'UTF-8');
     $email = mb_strtolower ($email, 'UTF-8');
@@ -193,24 +193,43 @@ function CreateUser ( $name, $pass, $email, $bot=false)
     $query = "UPDATE ".$db_prefix."uni"." SET usercount = ".$unitab['usercount'].";";
     dbquery ($query);
 
-    // Set the language of the registered player: if there is a selected language in cookies and the player is NOT a bot - use it when registering.
-    // Otherwise, use the default language of the universe
+    // Set the language of the registered player
     if ( !$bot && key_exists ( 'ogamelang', $_COOKIE ) && !$unitab['force_lang'] ) $lang = $_COOKIE['ogamelang'];
     else $lang = $unitab['lang'];
     if ( !key_exists ( $lang, $Languages ) ) $lang = $unitab['lang'];
 
     $ip = $_SERVER['REMOTE_ADDR'];
 
-    $user = array( null, time(), 0, 0, 0, "",  "", $name, $origname, 0, 0, $md, "", $email, $email,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, $ip, 0, $ack, 0, 0, 0, 0,
-                        hostname() . "evolution/", 1, 0, 1, 3, $lang, 0,
-                        0, $unitab['start_dm'], 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        USER_FLAG_DEFAULT );
-    $id = AddDBRow ( $user, "users" );
+    // --- FINAL FIX STARTS HERE ---
+    // Replaced the fragile AddDBRow with a specific, explicit, and robust INSERT query.
+    // This gives full control and bypasses the problematic helper function.
+    
+    // NOTE: This query lists all columns explicitly to match your schema precisely.
+    $query = "INSERT INTO `{$db_prefix}users` (
+        `regdate`, `ally_id`, `joindate`, `allyrank`, `session`, `private_session`, `name`, `oname`, `name_changed`, 
+        `name_until`, `password`, `temp_pass`, `pemail`, `email`, `email_changed`, `email_until`, `disable`, 
+        `disable_until`, `vacation`, `vacation_until`, `banned`, `banned_until`, `noattack`, `noattack_until`, 
+        `lastlogin`, `lastclick`, `ip_addr`, `validated`, `validatemd`, `hplanetid`, `admin`, `sortby`, `sortorder`, 
+        `skin`, `useskin`, `deact_ip`, `maxspy`, `maxfleetmsg`, `lang`, `aktplanet`, `dm`, `dmfree`, `sniff`, 
+        `debug`, `trader`, `rate_m`, `rate_k`, `rate_d`, `score1`, `score2`, `score3`, `place1`, `place2`, `place3`, 
+        `oldscore1`, `oldscore2`, `oldscore3`, `oldplace1`, `oldplace2`, `oldplace3`, `scoredate`, 
+        `r106`, `r108`, `r109`, `r110`, `r111`, `r113`, `r114`, `r115`, `r117`, `r118`, `r120`, `r121`, `r122`, 
+        `r123`, `r124`, `r199`, `flags`, `score4`, `place4`, `oldplace4`
+    ) VALUES (
+        ".time().", 0, 0, 0, '', '', '".addslashes($name)."', '".addslashes($origname)."', 0, 
+        0, '".$md."', '', '".addslashes($email)."', '".addslashes($email)."', 0, 0, 0, 
+        0, 0, 0, 0, 0, 0, 0, 
+        0, 0, '".$ip."', 0, '".$ack."', 0, 0, 0, 0, 
+        '".addslashes(hostname() . "evolution/")."', 1, 0, 1, 3, '".$lang."', 0, 
+        0, ".$unitab['start_dm'].", 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 
+        0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+        0, 0, 0, ".USER_FLAG_DEFAULT.", 0, 0, 0
+    );";
+
+    dbquery($query);
+    $id = mysqli_insert_id($db_connect); // Use your database driver's function to get the last inserted ID
+    // --- FINAL FIX ENDS HERE ---
 
     LogIPAddress ( $ip, $id, 1 );
 
@@ -219,7 +238,7 @@ function CreateUser ( $name, $pass, $email, $bot=false)
 
     $query = "UPDATE ".$db_prefix."users SET hplanetid = $homeplanet, aktplanet = $homeplanet WHERE player_id = $id;";
     dbquery ( $query );
-
+    
     // Send a welcome email and message.
     if ( !$bot ) {
         if ( !localhost($ip) ) SendGreetingsMail ( $origname, $pass, $email, $ack);
@@ -227,8 +246,7 @@ function CreateUser ( $name, $pass, $email, $bot=false)
     }
 
     // Delete an inactivated user after 3 days.
-
-    SetVar ( $id, "TimeLimit", 3*365*24*60*60 );
+    SetVar ( $id, "TimeLimit", 3*24*60*60 );
 
     if (!$bot && GetModeVarInt('mod_carnage') != 0) {
         ModifyUserForCarnageMode ($id);
@@ -238,6 +256,8 @@ function CreateUser ( $name, $pass, $email, $bot=false)
 
     return $id;
 }
+
+
 
 // Completely delete the player, all their planets and fleets.
 // Turn back fleets flying at the player.
@@ -615,36 +635,38 @@ function Login ( $login, $pass, $passmd="", $from_validate=0 )
 }
 
 // Recalculation of stats.
-function RecalcStats ($player_id)
+function RecalcStats($player_id)
 {
     global $db_prefix;
     $m = $k = $d = $e = 0;
-    $points = $fpoints = $rpoints = 0;
+    $points = $fpoints = $rpoints = $mpoints = 0;
 
     // Planets/moons + standing fleets
     $query = "SELECT * FROM ".$db_prefix."planets WHERE owner_id = '".$player_id."'";
-    $result = dbquery ($query);
-    $rows = dbrows ($result);
+    $result = dbquery($query);
+    $rows = dbrows($result);
     while ($rows--) {
-        $planet = dbarray ($result);
-        if ( $planet['type'] >= PTYP_DF ) continue;        // only count planets and moons.
-        $pp = PlanetPrice ($planet);
+        $planet = dbarray($result);
+        if ($planet['type'] >= PTYP_DF) continue;        // only count planets and moons.
+        $pp = PlanetPrice($planet);
         $points += $pp['points'];
         $fpoints += $pp['fpoints'];
+        
+        if (isset($pp['mine_pts'])) {
+            $mpoints += $pp['mine_pts'];
+        }
     }
 
     // Research
     global $resmap;
-    $user = LoadUser ($player_id);
-    if ( $user != null )
-    {
-        foreach ($resmap as $i=>$gid) {
+    $user = LoadUser($player_id);
+    if ($user != null) {
+        foreach ($resmap as $i => $gid) {
             $level = $user["r$gid"];
             $rpoints += $level;
             if ($level > 0) {
-                for ( $lv = 1; $lv<=$level; $lv ++ )
-                {
-                    $res = ResearchPrice ( $gid, $lv );
+                for ($lv = 1; $lv <= $level; $lv++) {
+                    $res = ResearchPrice($gid, $lv);
                     $m = $res['m']; $k = $res['k']; $d = $res['d']; $e = $res['e'];
                     $points += ($m + $k + $d);
                 }
@@ -654,33 +676,33 @@ function RecalcStats ($player_id)
 
     // Flying fleets
     global $fleetmap;
-    $result = EnumOwnFleetQueue ( $player_id, 1 );
-    $rows = dbrows ($result);
-    while ($rows--)
-    {
-        $queue = dbarray ( $result );
-        $fleet = LoadFleet ( $queue['sub_id'] );
+    $result = EnumOwnFleetQueue($player_id, 1);
+    $rows = dbrows($result);
+    while ($rows--) {
+        $queue = dbarray($result);
+        $fleet = LoadFleet($queue['sub_id']);
 
-        foreach ( $fleetmap as $i=>$gid ) {        // Fleet
+        foreach ($fleetmap as $i => $gid) {
             $level = $fleet["ship$gid"];
-            if ($level > 0){
-                $res = ShipyardPrice ( $gid );
+            if ($level > 0) {
+                $res = ShipyardPrice($gid);
                 $m = $res['m']; $k = $res['k']; $d = $res['d']; $e = $res['e'];
                 $points += ($m + $k + $d) * $level;
                 $fpoints += $level;
             }
         }
     
-        if ( $fleet['ipm_amount'] > 0 ) {        // IPM
-            $res = ShipyardPrice ( GID_D_IPM );
+        if ($fleet['ipm_amount'] > 0) {       
+            $res = ShipyardPrice(GID_D_IPM);
             $m = $res['m']; $k = $res['k']; $d = $res['d']; $e = $res['e'];
             $points += ($m + $k + $d) * $fleet['ipm_amount'];
         }
     }
 
     $query = "UPDATE ".$db_prefix."users SET ";
-    $query .= "score1=$points, score2=$fpoints, score3=$rpoints WHERE player_id = $player_id AND (banned <> 1 OR admin > 0);";
-    dbquery ($query);
+    $query .= "score1=$points, score2=$fpoints, score3=$rpoints, score4=$mpoints ";
+    $query .= "WHERE player_id = $player_id AND (banned <> 1 OR admin > 0);";
+    dbquery($query);
 }
 
 function AdjustStats ( $player_id, $points, $fpoints, $rpoints, $sign )
@@ -696,8 +718,8 @@ function RecalcRanks ()
 {
     global $db_prefix;
 
-    // Special processing for admins
-    $query = "UPDATE ".$db_prefix."users SET score1 = -1, score2 = -1, score3 = -1 WHERE admin > 0";
+    // Special processing for admins - ADD score4 here
+    $query = "UPDATE ".$db_prefix."users SET score1 = -1, score2 = -1, score3 = -1, score4 = -1 WHERE admin > 0";
     dbquery ($query);
 
     // Points
@@ -721,10 +743,18 @@ function RecalcRanks ()
               ORDER BY score3 DESC";
     dbquery ($query);
 
-    // Special processing for admins
-    $query = "UPDATE ".$db_prefix."users SET place1 = 0, place2 = 0, place3 = 0 WHERE admin > 0";
+    // Mines
+    dbquery ("SET @pos := 0;");
+    $query = "UPDATE ".$db_prefix."users
+              SET place4 = (SELECT @pos := @pos+1)
+              ORDER BY score4 DESC";
+    dbquery ($query);
+
+    // Special processing for admins - ADD place4 here
+    $query = "UPDATE ".$db_prefix."users SET place1 = 0, place2 = 0, place3 = 0, place4 = 0 WHERE admin > 0";
     dbquery ($query);
 }
+
 
 // Log out all the players
 function UnloadAll ()
