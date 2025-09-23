@@ -117,7 +117,7 @@ function BotHasMeaningfulActions() {
             if (BotHasFleetActions()) {
                 return true;
             }
-            return BotHasAttackTargets() || BotNeedsFleetManagement();
+            return false;
 
         case 'turtle':
             // Turtles focus on defense and steady development
