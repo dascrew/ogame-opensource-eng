@@ -21,6 +21,10 @@ function BotSimulateBattle($attacker_fleet, $defender_fleet, $defender_defense) 
     return $result;
 }
 
+function BotFindPotentialTarget(){
+
+}
+
 function BotCreateCoordinatedAttack() {
     global $BotID;
 
@@ -317,4 +321,235 @@ function BotCalculateDebrisValue($attacker_losses, $defender_losses) {
     $defender_cost = BotCalculateFleetResourceCost($defender_losses);
     return ($attacker_cost + $defender_cost) * 0.70;
 }
+// Bot scouting action - sends probes to scout targets within range
+// Returns time to wait (0 = no delay, positive = seconds to wait)
+function BotScout($range = 100, $filters = array())
+{
+    global $BotID, $BotNow;
+    
+    require_once "user.php";
+    require_once "planet.php";
+    require_once "fleet.php";
+    
+    $user = LoadUser($BotID);
+    $aktplanet = GetPlanet($user['aktplanet']);
+    
+    if (!$user || !$aktplanet) {
+        Debug("BotScout: Failed to load user or planet data");
+        return 0;
+    }
+    
+    // Check if we have probes
+    $probe_count = $aktplanet['f' . GID_F_PROBE];
+    if ($probe_count < 1) {
+        Debug("BotScout: No probes available");
+        return 60; // Wait 1 minute and try again
+    }
+    
+    // Check fleet slots
+    $result = EnumOwnFleetQueue($user['player_id']);
+    $nowfleet = dbrows($result);
+    $maxfleet = $user['r' . GID_R_COMPUTER] + 1;
+    
+    if ($nowfleet >= $maxfleet) {
+        Debug("BotScout: No fleet slots available");
+        return 300; // Wait 5 minutes and try again
+    }
+    
+    // Find suitable targets
+    $targets = BotFindScoutTargets($aktplanet, $range, $filters);
+    
+    if (empty($targets)) {
+        Debug("BotScout: No suitable targets found");
+        return 600; // Wait 10 minutes and try again
+    }
+    
+    // Select a random target from the list
+    $target = $targets[array_rand($targets)];
+    
+    // Send scout mission
+    $result = BotSendScoutMission($aktplanet, $target);
+    
+    if ($result > 0) {
+        Debug("BotScout: Scout mission sent to [" . $target['g'] . ":" . $target['s'] . ":" . $target['p'] . "]");
+        return 10; // Small delay before next action
+    } else {
+        Debug("BotScout: Failed to send scout mission");
+        return 300; // Wait 5 minutes and try again
+    }
+}
 
+// Find suitable scout targets within range
+function BotFindScoutTargets($origin, $range, $filters)
+{
+    global $GlobalUni;
+    
+    // Validate and constrain range
+    $range = max(1, min(500, intval($range))); // Range between 1 and 500 systems
+    
+    $targets = array();
+    $current_galaxy = $origin['g'];
+    $current_system = $origin['s'];
+    
+    // Calculate system range
+    $min_system = max(1, $current_system - $range);
+    $max_system = min($GlobalUni['systems'], $current_system + $range);
+    
+    // Scan systems within range
+    for ($system = $min_system; $system <= $max_system; $system++) {
+        $system_targets = BotScanSystemForTargets($current_galaxy, $system, $filters);
+        $targets = array_merge($targets, $system_targets);
+        
+        // Limit total targets to prevent excessive processing
+        if (count($targets) > 100) {
+            break;
+        }
+    }
+    
+    return $targets;
+}
+
+// Scan a specific system for suitable targets
+function BotScanSystemForTargets($galaxy, $system, $filters)
+{
+    $targets = array();
+    
+    // Scan all planet positions in the system
+    for ($position = 1; $position <= 15; $position++) {
+        $planet = LoadPlanet($galaxy, $system, $position, 1); // Load planet
+        
+        if ($planet && $planet['owner_id'] > 0) {
+            $user = LoadUser($planet['owner_id']);
+            
+            if ($user && BotIsValidScoutTarget($user, $planet, $filters)) {
+                $targets[] = $planet;
+            }
+        }
+    }
+    
+    return $targets;
+}
+
+// Check if a player/planet is a valid scout target based on filters
+function BotIsValidScoutTarget($user, $planet, $filters)
+{
+    global $BotID;
+    
+    // Default filters if none provided
+    $default_filters = array(
+        'avoid_newbie' => true,
+        'avoid_strong' => true,
+        'target_inactive' => true,
+        'min_inactive_days' => 7
+    );
+    
+    $filters = array_merge($default_filters, $filters);
+    
+    // Skip own planets
+    if ($user['player_id'] == $BotID) {
+        return false;
+    }
+    
+    // Skip newbie players if filter is set
+    if ($filters['avoid_newbie'] && IsPlayerNewbie($user['player_id'])) {
+        return false;
+    }
+    
+    // Skip strong players if filter is set
+    if ($filters['avoid_strong'] && IsPlayerStrong($user['player_id'])) {
+        return false;
+    }
+    
+    // Check for inactive players if filter is set
+    if ($filters['target_inactive']) {
+        $inactive_threshold = time() - ($filters['min_inactive_days'] * 24 * 60 * 60);
+        if ($user['lastclick'] > $inactive_threshold) {
+            return false; // Player is not inactive enough
+        }
+    }
+    
+    // Skip players in vacation mode
+    if ($user['vacation']) {
+        return false;
+    }
+    
+    // Skip banned players
+    if ($user['banned']) {
+        return false;
+    }
+    
+    return true;
+}
+
+// Send a scout mission to the target
+function BotSendScoutMission($origin, $target)
+{
+    global $BotNow, $fleetmap;
+    
+    // Prepare fleet array (1 probe)
+    $fleet = array();
+    foreach ($fleetmap as $gid) {
+        $fleet[$gid] = 0;
+    }
+    $fleet[GID_F_PROBE] = 1;
+    
+    // Calculate flight time and fuel consumption
+    $dist = BotCalculateDistance($origin, $target);
+    $seconds = BotCalculateFlightTime($dist, 1); // Speed factor 1
+    $fuel = BotCalculateFuelConsumption($fleet, $dist, $seconds);
+    
+    // Check if we have enough deuterium
+    if ($origin['d'] < $fuel) {
+        Debug("BotScout: Not enough deuterium for mission (need: $fuel, have: " . $origin['d'] . ")");
+        return 0;
+    }
+    
+    // Remove probe and fuel from origin planet
+    $ship_array = array();
+    foreach ($fleetmap as $gid) {
+        $ship_array[$gid] = 0;
+    }
+    $ship_array[GID_F_PROBE] = 1;
+    
+    AdjustShips($ship_array, $origin['planet_id'], '-');
+    AdjustResources(0, 0, $fuel, $origin['planet_id'], '-');
+    
+    // Dispatch the fleet
+    $fleet_id = DispatchFleet($fleet, $origin, $target, FTYP_SPY, $seconds, 0, 0, 0, $fuel, $BotNow);
+    
+    return $fleet_id;
+}
+
+// Calculate distance between two planets (simplified)
+function BotCalculateDistance($origin, $target)
+{
+    if ($origin['g'] != $target['g']) {
+        return abs($origin['g'] - $target['g']) * 20000;
+    } else if ($origin['s'] != $target['s']) {
+        return abs($origin['s'] - $target['s']) * 5 * 19 + 2700;
+    } else if ($origin['p'] != $target['p']) {
+        return abs($origin['p'] - $target['p']) * 5 + 1000;
+    } else {
+        return 5;
+    }
+}
+
+// Calculate flight time based on distance and speed
+function BotCalculateFlightTime($distance, $speed_factor)
+{
+    // Simplified calculation - probe speed is typically fast
+    $probe_speed = 100000000; // Base probe speed
+    $actual_speed = $probe_speed * $speed_factor;
+    
+    return max(1, round($distance / $actual_speed * 3600)); // Convert to seconds
+}
+
+// Calculate fuel consumption for the mission
+function BotCalculateFuelConsumption($fleet, $distance, $flight_time)
+{
+    // Simplified fuel calculation for probes
+    $base_consumption = 1; // Base deuterium per probe
+    $distance_factor = max(1, $distance / 1000);
+    
+    return ceil($base_consumption * $distance_factor);
+}

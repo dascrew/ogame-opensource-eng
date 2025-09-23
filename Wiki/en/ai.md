@@ -10,6 +10,19 @@ The only difference is that bots are always virtually (in the form of events) pr
 
 Therefore, no game means can not determine whether the player is a bot or a human. Unless the bot will not reply to your private messages, although there are some human players who also prefer not to communicate via PMs.
 
+## Comprehensive Bot Documentation
+
+**New to bots? Start here:** [Bot Quick Start Guide](bot-quick-start.md) - Get your first bot running in minutes
+
+For detailed information about bot functionality, refer to these comprehensive guides:
+
+- **[Bot API Reference](bot-api-reference.md)** - Complete function reference for all bot API calls
+- **[Bot Strategy Development Guide](bot-strategy-guide.md)** - How to create and manage bot strategies  
+- **[Bot Personality System](bot-personality-system.md)** - Understanding bot personalities and behavior patterns
+- **[Bot Block Reference](bot-block-reference.md)** - Detailed reference for all strategy blocks
+- **[Bot Administration Guide](bot-administration.md)** - Admin tools for managing bots
+- **[Bot Examples and Tutorials](bot-examples.md)** - Practical examples and step-by-step tutorials
+
 # How AI Works
 
 <a href='http://www.youtube.com/watch?feature=player_embedded&v=4DdlG0zwLAI' target='_blank'><img src='http://img.youtube.com/vi/4DdlG0zwLAI/0.jpg' width='425' height=344 /></a>
@@ -101,3 +114,57 @@ The blocks are executed one by one, starting with the first one (Start).
 The operation of a block depends on its type and contents.
 
 After starting the bot through the admin panel, the `_start` start strategy is executed.
+
+---
+
+## Quick Reference
+
+### For Developers
+- **[Bot API Reference](bot-api-reference.md)** - All available bot functions with parameters and examples
+- **[Bot Block Reference](bot-block-reference.md)** - Complete block types and their properties
+
+### For Strategy Creators  
+- **[Bot Strategy Development Guide](bot-strategy-guide.md)** - How to create effective strategies
+- **[Bot Examples and Tutorials](bot-examples.md)** - Practical examples and step-by-step guides
+
+### For Administrators
+- **[Bot Administration Guide](bot-administration.md)** - Bot management and monitoring tools
+- **[Bot Personality System](bot-personality-system.md)** - Understanding and customizing bot behavior
+
+### Key Bot Functions
+```php
+// Basic building and research
+BotBuild($building_id)           // Build a structure
+BotResearch($research_id)        // Start research
+BotCanBuild($building_id)        // Check if building is possible
+
+// Fleet management  
+BotBuildFleet($ship_id, $count)  // Build ships
+BotGetFleetCount($ship_id)       // Get ship count
+
+// Information and variables
+BotGetBuild($building_id)        // Get building level
+BotGetResearch($research_id)     // Get research level
+BotGetVar($name, $default)       // Get bot variable
+BotSetVar($name, $value)         // Set bot variable
+
+// Resource management
+BotResourceSettings(...)         // Set production levels
+BotEnergyAbove($threshold)       // Check energy level
+```
+
+### Strategy Block Types
+- **Start** - Entry point for strategies
+- **End** - Termination point
+- **Action** - Performs bot actions (BUILD, RESEARCH, custom code)
+- **Condition** - Decision making (CAN_BUILD, CAN_RESEARCH, custom conditions)
+- **Label** - Named waypoints for navigation
+- **Branch** - Jump to labeled sections
+
+### Bot Personalities
+- **Miner** - Focused on resource production and economic development
+  - Subtypes: pure, trader, balanced
+- **Fleeter** - Focused on military development and fleet operations  
+  - Subtypes: swarm, speed, smasher, balanced
+
+Each personality has different building caps, research priorities, and fleet composition preferences.
