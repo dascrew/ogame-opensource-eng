@@ -299,6 +299,9 @@ function handleActionBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, 
             $sleep = GetBuildingTime($BotID, $buildingID); 
             AddBotQueue($BotID, $strat_id, $childs[0]['to'], $BotNow, $sleep);
             break;
+        case 'SCOUT':
+            $sleep = BotScout();
+            break;
             
         default:
             $sleep = handleCustomAction($block['text']);
