@@ -441,7 +441,7 @@ function AddBot ($name)
         BotSetVarNew($player_id, 'personality', $personality);
         BotSetVarNew($player_id, 'subtype', $subtype);
         BotSetVarNew($player_id, 'sleep_center_hour', rand(0, 23));
-        BotInitializeSkills($player_id, $personality);
+        BotInitializeSkills($personality);
         AddBotSkillUpdateEvent($player_id);
         BotInitializeActivityPattern($player_id);
         return true;
