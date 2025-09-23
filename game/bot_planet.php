@@ -227,3 +227,16 @@ function BotCanAffordEnergy($mine_id)
     // Simple check: would energy remain non-negative?
     return ($current_energy - $energy_increase) >= 0;
 }
+
+function BotGetBuildingsAtCap($planet) {
+    $config = GetBotPersonalityConfig();
+    $at_cap = [];
+    if (!isset($config['building_caps'])) { return $at_cap; }
+    foreach ($config['building_caps'] as $building_id => $cap) {
+        $current_level = $planet[$building_id] ?? 0;
+        if ($current_level >= $cap) {
+            $at_cap[] = $building_id;
+        }
+    }
+    return $at_cap;
+}

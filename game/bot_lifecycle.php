@@ -46,29 +46,87 @@ function BotIsAsleep() {
     return $current_hour >= $start_hour && $current_hour < $end_hour;
 }
 
+function BotHasResearchActions() {
+    $all_research = GetResearchIds();
+    foreach ($all_research as $research_id) {
+        if (BotCanResearch($research_id)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function BotHasBuildActions($aktplanet) {
+    $all_buildings = GetBuildingIds();
+    $capped_buildings = BotGetBuildingsAtCap($aktplanet);
+
+    if (count($capped_buildings) >= count($all_buildings)) {
+        return false;
+    }
+
+    $buildable_buildings = array_diff($all_buildings, $capped_buildings);
+    foreach ($buildable_buildings as $building_id) {
+        if (BotCanBuild($building_id)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function BotHasFleetActions() {
+    $config = GetBotPersonalityConfig();
+    $ships = $config['ship_ratio'] ?? [];
+    $ship_ids = array_keys($ships);
+    foreach ($ship_ids as $ship_id) {
+        if (BotCanBuildFleet($ship_id)) {
+            return true;
+        }
+    }
+    return false;
+}
 /**
  * Check if bot has meaningful actions available based on personality
  */
 function BotHasMeaningfulActions() {
+    global $BotID;
     $personality = BotGetVar('personality', 'miner');
+    $user = LoadUser($BotID);
+    $aktplanet = GetPlanet($user['aktplanet']);
     
     switch ($personality) {
         case 'miner':
-            // Miners care about building/research queue and resource management
-            return BotCanBuild() || BotCanResearch() || BotNeedsResourceManagement();
-            
+            if (BotHasBuildActions($aktplanet)) {
+                return true;
+            }
+            if (BotHasResearchActions()) {
+                return true;
+            }
+            if (BotHasFleetActions()) {
+                return true;
+           }            
+            return false;
+
         case 'fleeter':
             // Fleeters care about combat, scouting, fleet management
-            return BotHasFleetActions() || BotHasAttackTargets() || BotNeedsFleetManagement();
-            
+            if (BotHasBuildActions($aktplanet)) {
+                return true;
+            }
+            if (BotHasResearchActions()) {
+                return true;
+            }
+            if (BotHasFleetActions()) {
+                return true;
+            }
+            return BotHasAttackTargets() || BotNeedsFleetManagement();
+
         case 'turtle':
             // Turtles focus on defense and steady development
             return BotCanBuild() || BotCanResearch() || BotNeedsDefenseActions();
-            
+
         case 'trader':
             // Traders focus on resource optimization and trade
             return BotHasTradeOpportunities() || BotNeedsResourceManagement();
-            
+
         default:
             return BotCanBuild() || BotCanResearch();
     }

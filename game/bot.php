@@ -166,7 +166,7 @@ function evaluateCondition($text, $personality, $PERSONALITIES) {
         case 'IS_MINER':
             return BotGetVar('personality', 'miner') === 'miner';
         case 'IS_FLEETER':
-            return BotGetVar('personality', 'miner') === 'fleeter';      
+            return BotGetVar('personality', 'miner') === 'fleeter';
         default:
             return @eval("return ($text);");
     }
@@ -438,12 +438,12 @@ function AddBot ($name)
         if (!isset($PERSONALITIES[$personality]['subtypes'][$subtype])) {
             $subtype = $PERSONALITIES[$personality]['default_subtype'];
         }
-        BotSetVarNew('personality', $personality);
-        BotSetVarNew('subtype', $subtype);
-        BotSetVarNew('sleep_center_hour', rand(0, 23));
-        BotInitializeSkills($personality);
-        AddBotSkillUpdateEvent($BotID);
-        BotInitializeActivityPattern();
+        BotSetVarNew($player_id, 'personality', $personality);
+        BotSetVarNew($player_id, 'subtype', $subtype);
+        BotSetVarNew($player_id, 'sleep_center_hour', rand(0, 23));
+        BotInitializeSkills($player_id, $personality);
+        AddBotSkillUpdateEvent($player_id);
+        BotInitializeActivityPattern($player_id);
         return true;
     }
     return false;
