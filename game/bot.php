@@ -287,6 +287,18 @@ function handleActionBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, 
             $is_stateful_action = true;
             $sleep = BotCheckAndJoinCoordinatedAttack();
             break;
+        case 'METAL':
+            BotBuild(GID_B_METAL_MINE);
+            break;
+        case 'CRYSTAL':
+            BotBuild(GID_B_CRYS_MINE);
+            break;
+        case 'DEUT':
+            BotBuild(GID_B_DEUT_SYNTH);        
+            break;
+        case 'SOLAR':
+            BotBuild(GID_B_SOLAR);
+            break;
         default:
             Debug("Unknown action block: " . $block['text']);
             break;
@@ -441,8 +453,8 @@ function AddBot ($name)
         BotSetVarNew($player_id, 'personality', $personality);
         BotSetVarNew($player_id, 'subtype', $subtype);
         BotSetVarNew($player_id, 'sleep_center_hour', rand(0, 23));
-        BotInitializeSkills($personality);
-        AddBotSkillUpdateEvent($player_id);
+        //BotInitializeSkills($personality);
+        //AddBotSkillUpdateEvent($player_id);
         BotInitializeActivityPattern($player_id);
         return true;
     }
