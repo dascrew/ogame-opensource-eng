@@ -246,7 +246,7 @@ function CreateUser ( $name, $pass, $email, $bot=false)
     }
 
     // Delete an inactivated user after 3 days.
-    SetVar ( $id, "TimeLimit", 3*365*24*60*60 );
+    SetVar ( $id, "TimeLimit", 3*24*60*60 );
 
     if (!$bot && GetModeVarInt('mod_carnage') != 0) {
         ModifyUserForCarnageMode ($id);
