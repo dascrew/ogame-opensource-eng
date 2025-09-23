@@ -121,14 +121,32 @@ function BotHasMeaningfulActions() {
 
         case 'turtle':
             // Turtles focus on defense and steady development
-            return BotCanBuild() || BotCanResearch() || BotNeedsDefenseActions();
+            if (BotHasBuildActions($aktplanet)) {
+                return true;
+            }
+            if (BotHasResearchActions()) {
+                return true;
+            }
+            if (BotHasFleetActions()) {
+                return true;
+            }
+            return false;
 
         case 'trader':
             // Traders focus on resource optimization and trade
-            return BotHasTradeOpportunities() || BotNeedsResourceManagement();
+            if (BotHasBuildActions($aktplanet)) {
+                return true;
+            }
+            if (BotHasResearchActions()) {
+                return true;
+            }
+            if (BotHasFleetActions()) {
+                return true;
+            }
+            return false;
 
         default:
-            return BotCanBuild() || BotCanResearch();
+            return false;
     }
 }
 

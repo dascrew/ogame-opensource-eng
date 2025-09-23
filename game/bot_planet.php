@@ -112,7 +112,7 @@ function BotCanResearch ($obj_id)
     $user = LoadUser ($BotID);
     $aktplanet = GetPlanet ( $user['aktplanet'] );
     ProdResources ( $aktplanet, $aktplanet['lastpeek'], $BotNow );
-    $level = $aktplanet['r'.$obj_id] + 1;
+    $level = (isset($user['r'.$obj_id]) ? $user['r'.$obj_id] : 0) + 1;
     $text = CanResearch ($user, $aktplanet, $obj_id, $level);
     return $text === '';
 }
@@ -123,7 +123,7 @@ function BotResearch ($obj_id)
     global $BotID, $BotNow, $GlobalUni;
     $user = LoadUser ($BotID);
     $aktplanet = GetPlanet ( $user['aktplanet'] );
-    $level = $aktplanet['r'.$obj_id] + 1;
+    $level = (isset($user['r'.$obj_id]) ? $user['r'.$obj_id] : 0) + 1;
     $text = StartResearch ($user['player_id'], $user['aktplanet'], $obj_id, 0);
     if ( $text === '' ) {
         $speed = $GlobalUni['speed'];
