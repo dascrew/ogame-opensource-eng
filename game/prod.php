@@ -116,6 +116,12 @@ function BuildPrice ( $id, $lvl )
 {
     global $initial;
 
+    // Validate $id and $initial entry
+    if (!isset($initial[$id]) || !is_array($initial[$id]) || count($initial[$id]) < 5) {
+        // Return zero cost for invalid id
+        return array('m' => 0, 'k' => 0, 'd' => 0, 'e' => 0);
+    }
+
     $factor = $initial[$id][4];
     $m = $initial[$id][0] * pow($factor, $lvl-1);
     $k = $initial[$id][1] * pow($factor, $lvl-1);

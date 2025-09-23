@@ -147,13 +147,13 @@ function BotGetLastBuilt() {
     $user = LoadUser($BotID);
     if (!$user || !isset($user['aktplanet'])) {
         Debug("Failed to load user or aktplanet missing");
-        return 0;
+        return false;
     }
 
     $aktplanet = GetPlanet($user['aktplanet']);
     if (!is_array($aktplanet) || !isset($aktplanet['planet_id'])) {
         Debug("Invalid planet data for ID: " . $user['aktplanet']);
-        return 0;
+        return false;
     }
 
     if (isset($aktplanet['last_built'])) {
@@ -163,7 +163,7 @@ function BotGetLastBuilt() {
     $result = GetBuildQueue($aktplanet['planet_id']);
     if (!$result) {
         Debug("No build queue found for planet ID: " . $aktplanet['planet_id']);
-        return 0;
+        return false;
     }
     $last_building = null;
     
