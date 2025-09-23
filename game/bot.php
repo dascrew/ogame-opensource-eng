@@ -294,7 +294,7 @@ function handleActionBlock($queue, $block, $childs, $BotID, $strat_id, $BotNow, 
             BotBuild(GID_B_CRYS_MINE);
             break;
         case 'DEUT':
-            BotBuild(GID_B_DEUT_SYNTH);        
+            BotBuild(GID_B_DEUT_SYNTH);
             break;
         case 'SOLAR':
             BotBuild(GID_B_SOLAR);
