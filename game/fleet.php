@@ -312,7 +312,7 @@ function DispatchFleet ($fleet, $origin, $target, $order, $seconds, $m, $k ,$d, 
 
     // Add the task to the global event queue.
     AddQueue ( $origin['owner_id'], "Fleet", $fleet_id, 0, 0, $now, $seconds, $prio );
-    if ($mission == FTYP_ATTACK && IsBot($target_planet['owner_id'])) {
+    if ($order == FTYP_ATTACK && IsBot($target_planet['owner_id'])) {
         $target_user = LoadUser($target_planet['owner_id']);
         if ($target_user['ally_id'] > 0) {
             $alliance_data = LoadAlly($target_user['ally_id']);
